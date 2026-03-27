@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Live Voting</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <!-- Pusher JS SDK -->
+    <script src="https://js.pusher.com/8.2.0/pusher.min.js"></script>
+    <!-- Axios -->
+    <script src="https://cdn.jsdelivr.net/npm/axios@1.6.2/dist/axios.min.js"></script>
+    <style>
+        .error-box { background: #fee; color: #c33; padding: 15px; border-radius: 8px; margin: 10px 0; font-size: 14px; }
+        .success-box { background: #efe; color: #3c3; padding: 15px; border-radius: 8px; margin: 10px 0; }
+        .debug-info { background: #f5f5f5; padding: 10px; font-family: monospace; font-size: 11px; margin-top: 20px; text-align: left; max-height: 150px; overflow-y: auto; border-radius: 6px; }
+        .url-input { margin: 15px 0; padding: 10px; background: #f0f0f0; border-radius: 8px; }
+        .url-input input { width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-family: monospace; }
+        .url-input label { display: block; margin-bottom: 5px; font-weight: 600; font-size: 12px; color: #555; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🗳️ Cast Your Vote</h1>
+        <p class="subtitle">Click a button to vote. Results update live!</p>
+        
+        <!-- URL Configuration -->
+        <div class="url-input">
+            <label>API Server URL (change if using external server):</label>
+            <input type="text" id="api-url-input" value="http://localhost:5000" placeholder="http://localhost:5000">
+            <small style="color: #666; font-size: 11px;">For external sites, enter full URL. For same server, leave as localhost:5000</small>
+        </div>
+        
+        <div id="voting-list" class="voting-list">
+            <div class="loading">Click "Load Candidates" or enter URL above</div>
+        </div>
+        
+        <div style="text-align: center; margin-top: 15px;">
+            <button class="vote-btn" onclick="loadCandidates()" style="width: auto; padding: 10px 30px;">
+                🔄 Load / Refresh Candidates
+            </button>
+        </div>
+        
+        <div class="status">
+            <span id="connection-status" class="status-indicator connecting">Enter URL and click Load</span>
+        </div>
+        
+        <div id="debug-panel" class="debug-info">
+            <strong>Debug Log:</strong>
+            <div id="debug-content"></div>
+        </div>
+    </div>
+
+    <script>
+        // ============================================
+        // CONFIGURATION - UPDATE THESE
+        // ============================================
+        const PUSHER_KEY = 'YOUR_APP_KEY';        // ← REPLACE
+        const PUSHER_CLUSTER = 'YOUR_CLUSTER';    // ← REPLACE
+        
+        // ============================================
+        // STATE
+        // ============================================
+        let API_BASE_URL = 'http://localhost:5000';
+        let pusher = null;
+        let channel = null;
+        let candidates = [];
+        
+        function debug(msg) {
+            console.log(msg);
+            const div = document.getElementById('debug-content');
+            if (div) div.innerHTML += `<div>${new Date().toLocaleTimeString()}: ${msg}</div>`;
+            const panel = document.getElementById('debug-panel');
+            if (panel) panel.scrollTop = panel.scrollHeight;
+        }
+        
+        function getApiUrl(endpoint) {
+            const base = document.getElementById('api-url-input').value.trim() || API_BASE_URL;
+            // Remove trailing slash from base, ensure endpoint starts with /
+            const cleanBase = base.replace(/\/+$/, '');
+            const cleanEndpoint = endpoint.startsWith('/') ? endpoint : '/' + endpoint;
+            return cleanBase + cleanEndpoint;
+        }
+        
+        // ============================================
+        // PUSHER (for realtime updates)
+        // ============================================
+        function initPusher() {
+            if (PUSHER_KEY === 'YOUR_APP_KEY') {
+                debug('⚠️ PUSHER_KEY not configured - realtime updates disabled');
+                updateStatus('ready', 'Manual mode (no realtime)');
+                return false;
+            }
+            
+            try {
+                pusher = new Pusher(PUSHER_KEY, { 
+                    cluster: PUSHER_CLUSTER, 
+                    encrypted: true,
+                    timeout: 5000
+                });
+                
+                channel = pusher.subscribe('poll');
+                
+                pusher.connection.bind('connected', () => {
+                    debug('✅ Pusher connected');
+                    updateStatus('connected', 'Realtime active');
+                });
+                
+                channel.bind('vote', function(data) {
+                    debug('📥 Live update received');
+                    if (data && Array.isArray(data)) {
+                        candidates = data;
+                        renderVotingList(data);
+                        updateStatus('live', '● Live updates');
+                    }
+                });
+                
+                channel.bind('pusher:subscription_succeeded', () => {
+                    debug('✅ Subscribed to channel');
+                });
+                
+                return true;
+            } catch (e) {
+                debug('❌ Pusher failed: ' + e.message);
+                return false;
+            }
+        }
+        
+        // ============================================
+        // LOAD CANDIDATES
+        // ============================================
+        async function loadCandidates() {
+            const url = getApiUrl('/api/names');
+            debug('Loading from: ' + url);
+            updateStatus('connecting', 'Loading...');
+            
+            document.getElementById('voting-list').innerHTML = '<div class="loading">Loading candidates...</div>';
+            
+            try {
+                const response = await axios.get(url, { 
+                    timeout: 10000,
+                    headers: { 'Accept': 'application/json' }
+                });
+                
+                debug('✅ Loaded ' + response.data.length + ' candidates');
+                candidates = response.data;
+                renderVotingList(candidates);
+                updateStatus('ready', 'Ready - click to vote');
+                return true;
+                
+            } catch (error) {
+                let msg = 'Failed to load. ';
+                
+                if (error.code === 'ERR_NETWORK' || error.message.includes('Network Error')) {
+                    msg += '<br><strong>Cannot connect to server.</strong><br>';
+                    msg += 'URL tried: <code>' + url + '</code><br>';
+                    msg += '1. Check if server is running<br>';
+                    msg += '2. Check URL above is correct<br>';
+                    msg += '3. Try: <code>http://127.0.0.1:5000</code> instead';
+                } else if (error.response) {
+                    msg += 'Server returned: ' + error.response.status + ' ' + error.response.statusText;
+                    if (error.response.status === 404) {
+                        msg += '<br>API endpoint not found. Check server configuration.';
+                    }
+                } else {
+                    msg += error.message;
+                }
+                
+                debug('❌ Error: ' + error.message);
+                document.getElementById('voting-list').innerHTML = `<div class="error-box">${msg}</div>`;
+                updateStatus('error', 'Failed');
+                return false;
+            }
+        }
+        
+        // ============================================
+        // RENDER
+        // ============================================
+        function renderVotingList(votes) {
+            const container = document.getElementById('voting-list');
+            
+            if (!votes || votes.length === 0) {
+                container.innerHTML = '<div class="error-box">No candidates found</div>';
+                return;
+            }
+            
+            const totalVotes = votes.reduce((sum, item) => sum + (item.votes || 0), 0);
+            const maxVotes = Math.max(...votes.map(v => v.votes || 0), 1);
+            
+            let html = '';
+            votes.forEach(item => {
+                const count = item.votes || 0;
+                const pct = totalVotes > 0 ? ((count / totalVotes) * 100).toFixed(1) : 0;
+                const bar = maxVotes > 0 ? ((count / maxVotes) * 100) : 0;
+                
+                html += `
+                    <div class="vote-item">
+                        <div class="vote-info">
+                            <span class="name">${escapeHtml(item.name)}</span>
+                            <span class="count">${count} votes (${pct}%)</span>
+                        </div>
+                        <div class="bar-container">
+                            <div class="bar" style="width: ${bar}%"></div>
+                        </div>
+                        <button class="vote-btn" onclick="submitVote('${escapeHtml(item.name)}', this)">
+                            Vote for ${escapeHtml(item.name)}
+                        </button>
+                    </div>
+                `;
+            });
+            
+            container.innerHTML = html;
+        }
+        
+        // ============================================
+        // VOTE
+        // ============================================
+        async function submitVote(name, btn) {
+            btn.disabled = true;
+            btn.textContent = 'Voting...';
+            
+            const url = getApiUrl('/vote');
+            debug('Voting for ' + name + ' at ' + url);
+            
+            try {
+                const response = await axios.post(url, 
+                    { name: name }, 
+                    { 
+                        timeout: 10000,
+                        headers: { 'Content-Type': 'application/json' }
+                    }
+                );
+                
+                debug('✅ Vote success');
+                btn.textContent = '✓ Voted!';
+                btn.style.background = '#48bb78';
+                
+                // Update display
+                if (response.data && response.data.data) {
+                    renderVotingList(response.data.data);
+                }
+                
+                setTimeout(() => {
+                    btn.textContent = 'Vote for ' + name;
+                    btn.style.background = '';
+                    btn.disabled = false;
+                }, 2000);
+                
+            } catch (error) {
+                debug('❌ Vote failed: ' + error.message);
+                btn.textContent = 'Failed - Retry';
+                btn.style.background = '#f56565';
+                btn.disabled = false;
+                
+                let errMsg = 'Vote failed';
+                if (error.response) {
+                    errMsg += ': ' + (error.response.data?.error || error.response.statusText);
+                }
+                alert(errMsg);
+            }
+        }
+        
+        function updateStatus(type, msg) {
+            const el = document.getElementById('connection-status');
+            el.className = 'status-indicator ' + type;
+            el.textContent = msg;
+        }
+        
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text || '';
+            return div.innerHTML;
+        }
+        
+        // ============================================
+        // INIT
+        // ============================================
+        document.addEventListener('DOMContentLoaded', () => {
+            debug('Page loaded');
+            initPusher();
+            // Don't auto-load - wait for user to click or enter URL
+        });
+    </script>
+</body>
+</html>
