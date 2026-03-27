@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>External Vote Monitor</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/axios@1.6.2/dist/axios.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <style>
+        .monitor-box { background: #f8f9fa; border: 2px solid #667eea; border-radius: 12px; padding: 20px; margin: 20px 0; }
+        .vote-count { font-size: 3em; font-weight: bold; color: #667eea; text-align: center; }
+        .target-info { background: #fff; padding: 15px; border-radius: 8px; margin: 15px 0; }
+        .target-info label { font-weight: 600; color: #555; font-size: 12px; text-transform: uppercase; }
+        .target-info .value { font-family: monospace; font-size: 14px; color: #333; word-break: break-all; }
+        .status-running { color: #48bb78; font-weight: bold; }
+        .status-stopped { color: #f56565; font-weight: bold; }
+        .log-box { background: #1a1a2e; color: #64ffda; font-family: monospace; font-size: 12px; padding: 15px; border-radius: 8px; height: 300px; overflow-y: auto; margin-top: 20px; }
+        .log-box .error { color: #ff6b6b; }
+        .log-box .success { color: #51cf66; }
+        .stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin: 20px 0; }
+        .stat-box { background: #fff; padding: 20px; border-radius: 8px; text-align: center; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        .stat-number { font-size: 2em; font-weight: bold; color: #667eea; }
+        .stat-label { color: #718096; font-size: 12px; margin-top: 5px; }
+    </style>
+</head>
+<body>
+    <div class="container" style="max-width: 900px;">
+        <h1>🔍 External Vote Monitor</h1>
+        <p class="subtitle">Watch voting progress on external websites</p>
+        
+        <div class="target-info">
+            <label>Target URL:</label>
+            <div class="value" id="target-url">Not set</div>
+        </div>
+        
+        <div class="target-info">
+            <label>Candidate:</label>
+            <div class="value" id="target-candidate">Not set</div>
+        </div>
+        
+        <div class="stats-grid">
+            <div class="stat-box">
+                <div class="stat-number" id="votes-cast">0</div>
+                <div class="stat-label">Votes Cast</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-number" id="success-rate">0%</div>
+                <div class="stat-label">Success Rate</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-number" id="time-elapsed">00:00</div>
+                <div class="stat-label">Time Elapsed</div>
+            </div>
+        </div>
+        
+        <div class="monitor-box">
+            <div class="vote-count" id="current-votes">0</div>
+            <div style="text-align: center; color: #718096; margin-top: 10px;">Current Vote Count</div>
+        </div>
+        
+        <div style="text-align: center; margin: 20px 0;">
+            <span id="bot-status" class="status-stopped">● Bot Stopped</span>
+        </div>
+        
+        <div class="url-box">
+            <label>Manual Check - Enter Vote Count URL:</label>
+            <input type="text" id="check-url" placeholder="https://example.com/api/votes or leave empty to auto-detect">
+            <button class="vote-btn" onclick="manualCheck()" style="margin-top: 10px; width: auto; padding: 10px 30px;">
+                Check Now
+            </button>
+        </div>
+        
+        <div class="log-box" id="log-container">
+            <div>Waiting for bot to start...</div>
+        </div>
+    </div>
+
+    <script>
+        // Parse URL parameters
+        const params = new URLSearchParams(window.location.search);
+        const targetUrl = params.get('url') || 'Not set';
+        const candidate = params.get('candidate') || 'Not set';
+        const checkEndpoint = params.get('check') || '';
+        
+        document.getElementById('target-url').textContent = targetUrl;
+        document.getElementById('target-candidate').textContent = candidate;
+        
+        let startTime = null;
+        let votesCast = 0;
+        let successCount = 0;
+        let failCount = 0;
+        let checkInterval = null;
+        
+        function log(msg, type = 'info') {
+            const container = document.getElementById('log-container');
+            const div = document.createElement('div');
+            div.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+            div.className = type;
+            container.appendChild(div);
+            container.scrollTop = container.scrollHeight;
+        }
+        
+        function updateStats() {
+            document.getElementById('votes-cast').textContent = votesCast;
+            const rate = votesCast > 0 ? Math.round((successCount / votesCast) * 100) : 0;
+            document.getElementById('success-rate').textContent = rate + '%';
+            
+            if (startTime) {
+                const elapsed = Math.floor((Date.now() - startTime) / 1000);
+                const mins = Math.floor(elapsed / 60).toString().padStart(2, '0');
+                const secs = (elapsed % 60).toString().padStart(2, '0');
+                document.getElementById('time-elapsed').textContent = `${mins}:${secs}`;
+            }
+        }
+        
+        async function checkVotes() {
+            const url = document.getElementById('check-url').value || checkEndpoint || targetUrl;
+            if (!url || url === 'Not set') return;
+            
+            try {
+                // Try common endpoints
+                const endpoints = [
+                    '/api/votes',
+                    '/api/results',
+                    '/votes',
+                    '/results',
+                    '/api/names',
+                    ''
+                ];
+                
+                for (const endpoint of endpoints) {
+                    try {
+                        const checkUrl = url.replace(/\/$/, '') + endpoint;
+                        const response = await axios.get(checkUrl, { timeout: 5000 });
+                        
+                        if (response.data) {
+                            processVoteData(response.data);
+                            return;
+                        }
+                    } catch (e) {
+                        continue;
+                    }
+                }
+                
+                log('Could not fetch vote data from common endpoints', 'error');
+                
+            } catch (error) {
+                log('Check failed: ' + error.message, 'error');
+            }
+        }
+        
+        function processVoteData(data) {
+            // Handle different response formats
+            let total = 0;
+            let candidateVotes = 0;
+            
+            if (Array.isArray(data)) {
+                // Format: [{"name": "Alice", "votes": 10}, ...]
+                total = data.reduce((s, i) => s + (i.votes || 0), 0);
+                const found = data.find(i => i.name === candidate);
+                candidateVotes = found ? found.votes : 0;
+            } else if (data.votes || data.results) {
+                // Format: {"votes": {"Alice": 10, "Bob": 5}}
+                const votes = data.votes || data.results || {};
+                total = Object.values(votes).reduce((s, v) => s + (typeof v === 'number' ? v : 0), 0);
+                candidateVotes = votes[candidate] || 0;
+            } else if (typeof data === 'object') {
+                // Format: {"Alice": 10, "Bob": 5}
+                total = Object.values(data).reduce((s, v) => s + (typeof v === 'number' ? v : 0), 0);
+                candidateVotes = data[candidate] || 0;
+            }
+            
+            document.getElementById('current-votes').textContent = candidateVotes;
+            log(`Checked: ${candidate} has ${candidateVotes} votes (total: ${total})`, 'success');
+        }
+        
+        function manualCheck() {
+            log('Manual check initiated...');
+            checkVotes();
+        }
+        
+        // Simulate bot progress (called from bot or manual)
+        window.updateBotProgress = function(votes, success, failed, isRunning) {
+            votesCast = votes;
+            successCount = success;
+            failCount = failed;
+            
+            const statusEl = document.getElementById('bot-status');
+            if (isRunning) {
+                statusEl.textContent = '● Bot Running';
+                statusEl.className = 'status-running';
+                if (!startTime) startTime = Date.now();
+            } else {
+                statusEl.textContent = '● Bot Stopped';
+                statusEl.className = 'status-stopped';
+            }
+            
+            updateStats();
+            log(`Progress: ${success} success, ${failed} failed (${votes} total)`);
+        };
+        
+        // Auto-check every 30 seconds if URL provided
+        if (checkEndpoint || targetUrl !== 'Not set') {
+            setInterval(checkVotes, 30000);
+            log('Auto-check enabled (every 30s)');
+        }
+        
+        // Initial check
+        setTimeout(checkVotes, 1000);
+    </script>
+</body>
+</html>
