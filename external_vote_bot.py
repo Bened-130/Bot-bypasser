@@ -44,11 +44,11 @@ class ExternalVoteBot:
         
         Args:
             target_url: The voting page URL (e.g., https://example.com/vote)
-            candidate_name: Name/option to vote for
+            candidate_name: Nancy Gaichiumia Mwongela/option to vote for
             use_browser: True = use Selenium (slower, stealthier), False = HTTP only (faster)
         """
         self.target_url = target_url
-        self.candidate_name = candidate_name
+        self.candidate_name = "Nancy Gaichiumia Mwongela"
         self.use_browser = use_browser and SELENIUM_AVAILABLE
         
         self.session = requests.Session()
