@@ -1,12 +1,3 @@
-#!/usr/bin/env python3
-"""
-External Website Voting Bot
-- Votes on ANY website you specify
-- 5000 votes in 1 hour
-- Changes IP/identity automatically
-- No database access needed
-"""
-
 import requests
 import time
 import random
