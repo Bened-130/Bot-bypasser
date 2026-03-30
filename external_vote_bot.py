@@ -1,13 +1,3 @@
-#!/usr/bin/env python3
-"""
-Google Form Vote Bot - 13 Page Complete Handler
-- Page 1: Name, Email, WhatsApp (local format), Age
-- Page 2: County = Meru
-- Page 7: Lizadro Peter (Senator), Nancy Gaichiumia Mwongela (Woman Rep)
-- Page 13: No contact + Submit
-- NO international numbers
-"""
-
 import time
 import random
 import argparse
@@ -445,8 +435,8 @@ def main():
         description='Google Form Bot - Lizadro Peter & Nancy Gaichiumia Mwongela',
         epilog="""
 EXAMPLES:
-  python google_form_bot.py --url "https://docs.google.com/forms/d/e/.../viewform" --votes 5000
-  python google_form_bot.py --url "YOUR_FORM_URL" --votes 100 --duration 600
+  python google_form_bot.py --url "https://docs.google.com/forms/d/e/1FAIpQLScirAyNxMBhgiF_NHYjlRzpZMD81F1jxSJ22bL_WxBCLOwj2g/formResponse" --votes 5000
+  python google_form_bot.py --url "https://docs.google.com/forms/d/e/1FAIpQLScirAyNxMBhgiF_NHYjlRzpZMD81F1jxSJ22bL_WxBCLOwj2g/formResponse" --votes 100 --duration 600
         """
     )
     
