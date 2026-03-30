@@ -1,3 +1,13 @@
+#!/usr/bin/env python3
+"""
+Data Generator - Google Form Specific
+- No international numbers (local Kenyan format only)
+- WhatsApp: local format 07XX XXX XXX
+- Fixed: Lizadro Peter (Senator), Nancy Gaichiumia Mwongela (Woman Rep)
+- County: Meru
+- Contact: No
+"""
+
 import random
 import string
 import json
@@ -23,7 +33,7 @@ class DataGenerator:
             'Regina', 'Moses', 'Dorothy', 'Joshua', 'Rebecca', 'Abraham', 'Phyllis',
             'Isaac', 'Rachel', 'Jacob', 'Hannah', 'Gabriel', 'Deborah', 'Jonathan',
             'Beatrice', 'Timothy', 'Gladys', 'Philip', 'Agnes', 'Nicholas', 'Julia',
-            'Lizadro', 'Cliffod', 'Alex', 'Jackline', 'Shalon', 'Ireen', 'Mwongela'
+            'White', 'Lizadro', 'Cliffod', 'Alex', 'Jackline', 'Shalon', 'Ireen'
         ]
         
         self.last_names = [
@@ -33,8 +43,8 @@ class DataGenerator:
             'Githinji', 'Waithaka', 'Mbugua', 'Ndungu', 'Wanjala', 'Oduor', 'Akinyi',
             'Okoth', 'Auma', 'Onyango', 'Oloo', 'Adhiambo', 'Were', 'Ouma',
             'Muriithi', 'Macharia', 'Kinyua', 'Gachanja', 'Muchiri', 'Mweteri',
-            'Kathuri', 'Mukami', 'Mukami', 'Kathurima', 'Mbiti', 'Nkirote',
-            'Gaichiumia', 'Mwongela', 'Kinya', 'Mwiti', 'Peter', 'Lizadro'
+            'Kathuri', 'Mukami', 'Kathurima', 'Mbiti', 'Nkirote',
+            'Gaichiumia', 'Mwongela', 'Kinya', 'Mwiti', 'Murithi'
         ]
         
         self.domains = [
@@ -81,7 +91,7 @@ class DataGenerator:
                     'last_name': last
                 }
         
-        # Fallback
+        # Fallback with number
         first = random.choice(self.first_names)
         last = random.choice(self.last_names)
         full_name = f"{first} {last} {random.randint(1, 999)}"
@@ -129,9 +139,14 @@ class DataGenerator:
         raise Exception("Could not generate unique email")
     
     def generate_phone(self):
+        """
+        Generate Kenyan phone in LOCAL format only (NO international)
+        Format: 07XX XXX XXX or 01XX XXX XXX
+        """
         max_attempts = 10000
         
         for _ in range(max_attempts):
+            # Kenyan prefixes only
             safaricom = ['070', '071', '072', '0740', '0741', '0742', '0743', '0745', '0746', '0748', '011']
             airtel = ['073', '075', '078', '010']
             telkom = ['077', '076']
@@ -144,72 +159,65 @@ class DataGenerator:
             
             phone = f"{prefix}{suffix}"
             
+            # Validate: must be 10 digits, start with 07 or 01
             if len(phone) != 10 or not phone.startswith(('07', '01')):
                 continue
             
-            phone_variants = [phone, f"+254{phone[1:]}", f"254{phone[1:]}", f"0{phone}"]
-            
-            if not any(var in self.used_phones for var in phone_variants):
-                self.used_phones.update(phone_variants)
+            # Check uniqueness (local format only)
+            if phone not in self.used_phones:
+                self.used_phones.add(phone)
                 self.save_used_data()
-                return {
-                    'local': phone,
-                    'international': f"+254{phone[1:]}",
-                    'plain': f"254{phone[1:]}"
-                }
+                return phone  # Return local format only
         
         raise Exception("Could not generate unique phone")
     
-    def generate_whatsapp(self, phone_data=None):
-        if phone_data:
-            return phone_data['international']
-        return self.generate_phone()['international']
+    def generate_whatsapp(self):
+        """
+        WhatsApp number in LOCAL Kenyan format (same as phone)
+        NO international format (+254)
+        """
+        return self.generate_phone()  # Same local format
     
     def generate_age_bracket(self):
-        brackets = ['18-24', '25-30', '21-35', '18-25', '26-35']
-        weights = [0.35, 0.30, 0.20, 0.10, 0.05]
+        """Age bracket as shown in form: 18-24, 25-30, 31-35"""
+        brackets = ['18-24', '25-30', '31-35']
+        weights = [0.4, 0.4, 0.2]  # Weight toward younger
         return random.choices(brackets, weights=weights)[0]
     
     def generate_county(self):
-        """Always Meru County"""
-        return 'Meru County'
+        """Always Meru"""
+        return 'Meru'
     
     def generate_youth_senator(self):
-        """
-        FIXED per user requirement: Lizadro Peter
-        (From screenshot: Jackline Mukami, Lizadro Peter, Cliffod Kathurima, Peter Mweteri, Alex Muigai Mbiti)
-        """
+        """FIXED: Lizadro Peter"""
         return 'Lizadro Peter'
     
     def generate_youth_woman_rep(self):
-        """
-        FIXED per user requirement: Nancy Gaichiumia Mwongela
-        (From screenshot: Jackline Nkirote, Nancy Gaichiumia Mwongela, Shalon Kinya, Ireen Kinya mwiti)
-        """
+        """FIXED: Nancy Gaichiumia Mwongela"""
         return 'Nancy Gaichiumia Mwongela'
     
     def generate_contact_preference(self):
-        return "No, I don't wish to be contacted"
+        """FIXED: No, I do not wish to be contacted"""
+        return "No, I do not wish to be contacted"
     
     def generate_complete_profile(self):
         name = self.generate_name()
         email = self.generate_email(name)
-        phone = self.generate_phone()
-        whatsapp = self.generate_whatsapp(phone)
+        phone = self.generate_phone()  # Local format only
+        whatsapp = self.generate_whatsapp()  # Local format only
         
         profile = {
             'full_name': name['full_name'],
             'first_name': name['first_name'],
             'last_name': name['last_name'],
             'email': email,
-            'phone': phone['local'],
-            'phone_international': phone['international'],
-            'whatsapp': whatsapp,
+            'phone': phone,  # 07XX XXX XXX (local only)
+            'whatsapp': whatsapp,  # 07XX XXX XXX (local only)
             'age_bracket': self.generate_age_bracket(),
             'county': self.generate_county(),
-            'youth_senator': self.generate_youth_senator(),  # FIXED: Lizadro Peter
-            'youth_woman_rep': self.generate_youth_woman_rep(),  # FIXED: Nancy Gaichiumia Mwongela
-            'contact_preference': self.generate_contact_preference(),
+            'youth_senator': self.generate_youth_senator(),  # Lizadro Peter
+            'youth_woman_rep': self.generate_youth_woman_rep(),  # Nancy Gaichiumia Mwongela
+            'contact_preference': self.generate_contact_preference(),  # No contact
             'timestamp': datetime.now().isoformat()
         }
         
@@ -218,7 +226,7 @@ class DataGenerator:
     def get_stats(self):
         return {
             'total_emails_generated': len(self.used_emails),
-            'total_phones_generated': len([p for p in self.used_phones if p.startswith('07')]),
+            'total_phones_generated': len(self.used_phones),
             'total_names_generated': len(self.used_names),
             'storage_file': self.storage_file
         }
