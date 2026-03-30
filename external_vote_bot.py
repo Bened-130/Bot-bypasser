@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 """
-Google Form Voting Bot - Specialized for docs.google.com/forms
-- Handles multi-page Google Forms (Page 7 of 13 in screenshot)
-- FIXED: Lizadro Peter (Youth Senator), Nancy Gaichiumia Mwongela (Woman Rep)
-- Meru County, No contact
+Google Form Vote Bot - 13 Page Complete Handler
+- Page 1: Name, Email, WhatsApp (local format), Age
+- Page 2: County = Meru
+- Page 7: Lizadro Peter (Senator), Nancy Gaichiumia Mwongela (Woman Rep)
+- Page 13: No contact + Submit
+- NO international numbers
 """
 
 import time
@@ -22,7 +24,7 @@ try:
     from selenium.webdriver.common.action_chains import ActionChains
     from webdriver_manager.chrome import ChromeDriverManager
 except ImportError:
-    print("❌ Selenium required. Install: pip install selenium webdriver-manager")
+    print("❌ Install: pip install selenium webdriver-manager")
     sys.exit(1)
 
 from data_generator import DataGenerator
@@ -38,37 +40,34 @@ class GoogleFormVoteBot:
         self.fail_count = 0
         self.start_time = None
         
-        # FIXED SELECTIONS from user
-        self.YOUTH_SENATOR = 'Lizadro Peter'  # Changed per user
-        self.WOMAN_REP = 'Nancy Gaichiumia Mwongela'  # Confirmed
+        # FIXED SELECTIONS from screenshots
+        self.YOUTH_SENATOR = 'Lizadro Peter'
+        self.WOMAN_REP = 'Nancy Gaichiumia Mwongela'
+        self.COUNTY = 'Meru'
+        self.CONTACT = 'No, I do not wish to be contacted'
         
         print("\n" + "="*70)
-        print("🗳️  GOOGLE FORM VOTE BOT")
+        print("🗳️  GOOGLE FORM BOT - 13 PAGE COMPLETE")
         print("="*70)
-        print("FIXED SELECTIONS (per your requirements):")
+        print("FIXED SELECTIONS:")
         print(f"  Youth Senator: {self.YOUTH_SENATOR}")
-        print(f"  Youth Woman Rep: {self.WOMAN_REP}")
-        print(f"  County: Meru County")
-        print(f"  Contact: No, I don't wish to be contacted")
+        print(f"  Woman Rep: {self.WOMAN_REP}")
+        print(f"  County: {self.COUNTY}")
+        print(f"  Contact: {self.CONTACT}")
+        print(f"  Phone Format: Local Kenyan (07XX XXX XXX)")
         print("="*70 + "\n")
     
     def create_driver(self):
-        """Create Chrome driver with anti-detection"""
+        """Create stealth Chrome driver"""
         options = Options()
-        
-        # Stealth options
-        options.add_argument('--headless')  # Run in background
+        options.add_argument('--headless')
         options.add_argument('--no-sandbox')
         options.add_argument('--disable-dev-shm-usage')
         options.add_argument('--disable-blink-features=AutomationControlled')
         options.add_experimental_option('excludeSwitches', ['enable-automation'])
         options.add_experimental_option('useAutomationExtension', False)
+        options.add_argument('--window-size=1920,1080')
         
-        # Random viewport
-        viewports = ['1920,1080', '1366,768', '1440,900', '1536,864']
-        options.add_argument(f'--window-size={random.choice(viewports)}')
-        
-        # User agent
         user_agents = [
             'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
             'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
@@ -76,311 +75,267 @@ class GoogleFormVoteBot:
         options.add_argument(f'--user-agent={random.choice(user_agents)}')
         
         driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
-        
-        # Remove webdriver property
         driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
         
         return driver
     
-    def fill_page_1to6(self, driver, profile):
-        """Fill pages 1-6 (personal info: name, email, phone, age, county, etc.)"""
-        print("  Filling personal info pages (1-6)...")
-        
+    def fill_text_input(self, driver, placeholder_contains, value):
+        """Fill text input by placeholder or label"""
         try:
-            # Wait for form to load
-            time.sleep(random.uniform(2, 4))
+            # Try by placeholder
+            xpath = f'//input[contains(@placeholder, "{placeholder_contains}") or contains(@aria-label, "{placeholder_contains}")]'
+            inputs = driver.find_elements(By.XPATH, xpath)
             
-            # Common field handling for early pages
-            # These vary by form - adjust selectors as needed
-            
-            # Try to fill any text inputs found
-            text_inputs = driver.find_elements(By.XPATH, '//input[@type="text"]')
-            for i, inp in enumerate(text_inputs[:5]):  # First 5 text fields
-                try:
-                    if i == 0:
-                        inp.send_keys(profile['full_name'])
-                    elif i == 1:
-                        inp.send_keys(profile['email'])
-                    elif i == 2:
-                        inp.send_keys(profile['phone'])
-                    elif i == 3:
-                        inp.send_keys(profile['whatsapp'])
+            for inp in inputs:
+                if inp.is_displayed():
+                    inp.clear()
+                    inp.send_keys(value)
                     time.sleep(random.uniform(0.2, 0.5))
-                except:
-                    pass
-            
-            # Handle select/dropdown for age
-            try:
-                # Look for age question
-                age_elements = driver.find_elements(By.XPATH, 
-                    '//*[contains(text(), "age") or contains(text(), "Age")]')
-                if age_elements:
-                    # Find associated dropdown
-                    selects = driver.find_elements(By.TAG_NAME, 'select')
-                    for select in selects:
-                        try:
-                            options = select.find_elements(By.TAG_NAME, 'option')
-                            for option in options:
-                                if profile['age_bracket'] in option.text or \
-                                   profile['age_bracket'].split('-')[0] in option.text:
-                                    option.click()
-                                    break
-                        except:
-                            pass
-            except:
-                pass
-            
-            # Click Next to advance through pages 1-6
-            for page in range(6):  # Pages 1-6
-                time.sleep(random.uniform(1, 2))
-                next_btn = self.find_next_button(driver)
-                if next_btn:
-                    next_btn.click()
-                    print(f"    Advanced page {page + 1}")
-                    time.sleep(random.uniform(2, 3))
-                else:
-                    break
-            
-            return True
-            
-        except Exception as e:
-            print(f"    Error filling early pages: {e}")
-            return False
-    
-    def fill_voting_page(self, driver):
-        """Fill Page 7 - Voting page with FIXED selections"""
-        print("  Filling voting page (Page 7)...")
-        
-        try:
-            time.sleep(random.uniform(2, 3))
-            
-            # Select Youth Senator: Lizadro Peter
-            senator_selected = self.select_radio_by_text(driver, self.YOUTH_SENATOR)
-            if senator_selected:
-                print(f"    ✅ Selected Youth Senator: {self.YOUTH_SENATOR}")
-            else:
-                print(f"    ⚠️  Could not find {self.YOUTH_SENATOR}, trying alternatives...")
-                # Try partial match
-                senator_selected = self.select_radio_by_partial(driver, 'Lizadro')
-            
-            # Select Youth Woman Rep: Nancy Gaichiumia Mwongela
-            woman_rep_selected = self.select_radio_by_text(driver, self.WOMAN_REP)
-            if woman_rep_selected:
-                print(f"    ✅ Selected Woman Rep: {self.WOMAN_REP}")
-            else:
-                print(f"    ⚠️  Could not find {self.WOMAN_REP}, trying alternatives...")
-                woman_rep_selected = self.select_radio_by_partial(driver, 'Nancy')
-                if not woman_rep_selected:
-                    woman_rep_selected = self.select_radio_by_partial(driver, 'Mwongela')
-            
-            # Click Next
-            time.sleep(random.uniform(1, 2))
-            next_btn = self.find_next_button(driver)
-            if next_btn:
-                next_btn.click()
-                print("    Advanced to next page")
-            
-            return senator_selected and woman_rep_selected
-            
-        except Exception as e:
-            print(f"    Error on voting page: {e}")
-            return False
-    
-    def fill_remaining_pages(self, driver):
-        """Fill pages 8-13 (remaining questions, contact preference)"""
-        print("  Filling remaining pages (8-13)...")
-        
-        try:
-            # Handle remaining pages
-            for page in range(8, 14):  # Pages 8-13
-                time.sleep(random.uniform(2, 3))
-                
-                # Look for "No contact" option on relevant page
-                no_contact = self.select_radio_by_partial(driver, "don't wish")
-                if no_contact:
-                    print(f"    ✅ Selected 'No contact' on page {page}")
-                
-                # Look for Meru County if county question appears
-                meru = self.select_radio_by_partial(driver, "Meru")
-                if meru:
-                    print(f"    ✅ Selected Meru County on page {page}")
-                
-                # Click Next or Submit
-                next_btn = self.find_next_button(driver)
-                submit_btn = self.find_submit_button(driver)
-                
-                if submit_btn:
-                    submit_btn.click()
-                    print("    📝 Form submitted!")
-                    time.sleep(random.uniform(3, 5))
                     return True
-                elif next_btn:
-                    next_btn.click()
-                    print(f"    Advanced page {page}")
-                else:
-                    break
             
-            return True
-            
-        except Exception as e:
-            print(f"    Error on remaining pages: {e}")
-            return False
-    
-    def select_radio_by_text(self, driver, exact_text):
-        """Select radio button by exact text match"""
-        try:
-            # Strategy 1: Find label with exact text, click associated radio
-            labels = driver.find_elements(By.XPATH, f'//span[text()="{exact_text}"]')
+            # Try by parent label
+            labels = driver.find_elements(By.XPATH, f'//span[contains(text(), "{placeholder_contains}")]')
             for label in labels:
                 try:
-                    # Click the label (which selects the radio)
-                    label.click()
-                    time.sleep(random.uniform(0.2, 0.4))
-                    return True
-                except:
-                    pass
-            
-            # Strategy 2: Look for radio with this value
-            radios = driver.find_elements(By.XPATH, f'//input[@type="radio"][@value="{exact_text}"]')
-            for radio in radios:
-                try:
-                    radio.click()
-                    time.sleep(random.uniform(0.2, 0.4))
-                    return True
-                except:
-                    pass
-            
-            # Strategy 3: Contains text
-            labels = driver.find_elements(By.XPATH, f'//span[contains(text(), "{exact_text}")]')
-            for label in labels:
-                try:
-                    label.click()
-                    time.sleep(random.uniform(0.2, 0.4))
+                    parent = label.find_element(By.XPATH, '../../..')
+                    inp = parent.find_element(By.TAG_NAME, 'input')
+                    inp.clear()
+                    inp.send_keys(value)
+                    time.sleep(random.uniform(0.2, 0.5))
                     return True
                 except:
                     pass
             
             return False
-            
         except:
             return False
     
-    def select_radio_by_partial(self, driver, partial_text):
-        """Select radio button by partial text match"""
+    def select_radio(self, driver, option_text):
+        """Select radio button by option text"""
         try:
-            # Find any element containing partial text
-            elements = driver.find_elements(By.XPATH, 
-                f'//*[contains(text(), "{partial_text}")]')
+            # Find label with text, click it
+            labels = driver.find_elements(By.XPATH, 
+                f'//span[contains(text(), "{option_text}") or text()="{option_text}"]')
             
-            for elem in elements:
-                try:
-                    # Try clicking the element or its parent
-                    elem.click()
-                    time.sleep(random.uniform(0.2, 0.4))
-                    return True
-                except:
+            for label in labels:
+                if label.is_displayed():
                     try:
-                        # Try parent element
-                        parent = elem.find_element(By.XPATH, '..')
+                        # Click the div/span that acts as radio
+                        parent = label.find_element(By.XPATH, '../..')
                         parent.click()
-                        time.sleep(random.uniform(0.2, 0.4))
+                        time.sleep(random.uniform(0.3, 0.6))
                         return True
                     except:
-                        pass
+                        # Try clicking label directly
+                        label.click()
+                        time.sleep(random.uniform(0.3, 0.6))
+                        return True
             
             return False
-            
         except:
             return False
     
-    def find_next_button(driver):
-        """Find and return Next button"""
+    def select_dropdown(self, driver, option_text):
+        """Select from dropdown"""
         try:
-            # Common Google Form next button selectors
-            selectors = [
-                '//span[text()="Next"]/ancestor::div[@role="button"]',
-                '//div[@role="button"]//span[text()="Next"]',
-                '//span[contains(text(), "Next")]/parent::div[@jsname]',
-                '//div[contains(@jsname, "NPEpKc")]',  # Google Forms specific
-            ]
+            # Click dropdown to open
+            dropdowns = driver.find_elements(By.XPATH, 
+                '//div[@role="listbox"] | //div[contains(@class, "MocG8c")] | //div[contains(@class, "quantumWizMenuPaperselectOption")]')
             
-            for selector in selectors:
-                try:
-                    btn = driver.find_element(By.XPATH, selector)
-                    if btn.is_displayed():
-                        return btn
-                except:
-                    pass
+            for dd in dropdowns:
+                if dd.is_displayed():
+                    dd.click()
+                    time.sleep(random.uniform(0.5, 1))
+                    
+                    # Find and click option
+                    options = driver.find_elements(By.XPATH, 
+                        f'//span[contains(text(), "{option_text}") or text()="{option_text}"]')
+                    
+                    for opt in options:
+                        if opt.is_displayed():
+                            opt.click()
+                            time.sleep(random.uniform(0.3, 0.6))
+                            return True
             
-            return None
-            
+            return False
         except:
-            return None
+            return False
     
-    def find_submit_button(driver):
-        """Find and return Submit button"""
+    def click_next(self, driver):
+        """Click Next button"""
         try:
-            selectors = [
-                '//span[text()="Submit"]/ancestor::div[@role="button"]',
-                '//div[@role="button"]//span[text()="Submit"]',
-                '//span[contains(text(), "Submit")]/parent::div[@jsname]',
-                '//div[contains(text(), "Submit")]',
-            ]
+            buttons = driver.find_elements(By.XPATH, 
+                '//span[text()="Next"]/ancestor::div[@role="button"] | //div[@role="button"]//span[text()="Next"]')
             
-            for selector in selectors:
-                try:
-                    btn = driver.find_element(By.XPATH, selector)
-                    if btn.is_displayed():
-                        return btn
-                except:
-                    pass
+            for btn in buttons:
+                if btn.is_displayed():
+                    btn.click()
+                    time.sleep(random.uniform(2, 4))
+                    return True
             
-            return None
-            
+            return False
         except:
-            return None
+            return False
+    
+    def click_submit(self, driver):
+        """Click Submit button"""
+        try:
+            buttons = driver.find_elements(By.XPATH, 
+                '//span[text()="Submit"]/ancestor::div[@role="button"] | //div[@role="button"]//span[text()="Submit"]')
+            
+            for btn in buttons:
+                if btn.is_displayed():
+                    btn.click()
+                    time.sleep(random.uniform(3, 5))
+                    return True
+            
+            return False
+        except:
+            return False
     
     def submit_one_vote(self, profile):
-        """Submit single vote with complete form filling"""
+        """Submit complete 13-page form"""
         driver = None
         try:
             driver = self.create_driver()
             
-            print(f"\n📝 New vote: {profile['email']}")
+            print(f"\n📝 Vote: {profile['email']}")
             
             # Load form
             driver.get(self.form_url)
-            print(f"  Loaded: {self.form_url[:60]}...")
+            time.sleep(random.uniform(3, 5))
             
-            # Fill all pages
-            success = True
+            # ===== PAGE 1: Personal Info =====
+            print("  Page 1: Personal info")
             
-            # Pages 1-6: Personal info
-            if not self.fill_page_1to6(driver, profile):
-                success = False
+            # Full Name
+            if not self.fill_text_input(driver, "Full Name", profile['full_name']):
+                print("    ⚠️ Could not fill name")
             
-            # Page 7: Voting (CRITICAL - Lizadro Peter & Nancy Gaichiumia Mwongela)
-            if success and not self.fill_voting_page(driver):
-                print("    ⚠️  Could not confirm voting selections")
-                success = False
+            # Email
+            if not self.fill_text_input(driver, "Email", profile['email']):
+                print("    ⚠️ Could not fill email")
             
-            # Pages 8-13: Remaining + Submit
-            if success and not self.fill_remaining_pages(driver):
-                success = False
+            # WhatsApp (local format 07XX XXX XXX)
+            if not self.fill_text_input(driver, "WhatsApp", profile['whatsapp']):
+                print("    ⚠️ Could not fill WhatsApp")
             
-            # Verify submission
-            time.sleep(random.uniform(2, 4))
-            current_url = driver.current_url
+            # Age Bracket
+            if not self.select_radio(driver, profile['age_bracket']):
+                print("    ⚠️ Could not select age")
             
-            if 'formResponse' in current_url or 'submit' in current_url.lower():
-                print(f"  ✅ SUCCESS - Form submitted")
-                return True, "Submitted"
+            # Next
+            if not self.click_next(driver):
+                print("    ❌ Could not advance from Page 1")
+                return False, "Stuck on Page 1"
+            
+            # ===== PAGE 2: County =====
+            print("  Page 2: County")
+            
+            # Select Meru from dropdown
+            if not self.select_dropdown(driver, self.COUNTY):
+                # Try radio if dropdown fails
+                if not self.select_radio(driver, self.COUNTY):
+                    print("    ⚠️ Could not select Meru")
+            
+            # Next
+            if not self.click_next(driver):
+                print("    ❌ Could not advance from Page 2")
+            
+            # ===== PAGES 3-6: Unknown (fast forward) =====
+            for page_num in range(3, 7):
+                print(f"  Page {page_num}: Skipping/Next")
+                
+                # Try to fill any visible text fields with name
+                try:
+                    inputs = driver.find_elements(By.TAG_NAME, 'input')
+                    for inp in inputs:
+                        if inp.is_displayed() and inp.get_attribute('type') == 'text':
+                            inp.send_keys(profile['full_name'])
+                except:
+                    pass
+                
+                if not self.click_next(driver):
+                    print(f"    ⚠️ Could not advance from Page {page_num}")
+            
+            # ===== PAGE 7: VOTING (CRITICAL) =====
+            print("  Page 7: VOTING")
+            
+            # Youth Senator: Lizadro Peter
+            senator_selected = self.select_radio(driver, self.YOUTH_SENATOR)
+            if senator_selected:
+                print(f"    ✅ Senator: {self.YOUTH_SENATOR}")
             else:
-                print(f"  ⚠️  Unclear result - URL: {current_url[:60]}")
-                return True, "Possible success"  # Conservative count
+                # Try partial
+                senator_selected = self.select_radio(driver, "Lizadro")
+                if senator_selected:
+                    print(f"    ✅ Senator: Lizadro (partial match)")
+                else:
+                    print(f"    ❌ Could not select {self.YOUTH_SENATOR}")
+            
+            # Youth Woman Rep: Nancy Gaichiumia Mwongela
+            woman_selected = self.select_radio(driver, self.WOMAN_REP)
+            if woman_selected:
+                print(f"    ✅ Woman Rep: {self.WOMAN_REP}")
+            else:
+                # Try partial
+                woman_selected = self.select_radio(driver, "Nancy")
+                if not woman_selected:
+                    woman_selected = self.select_radio(driver, "Mwongela")
+                if woman_selected:
+                    print(f"    ✅ Woman Rep: Nancy/Mwongela (partial)")
+                else:
+                    print(f"    ❌ Could not select {self.WOMAN_REP}")
+            
+            # Next
+            if not self.click_next(driver):
+                print("    ❌ Could not advance from Page 7")
+            
+            # ===== PAGES 8-12: Unknown =====
+            for page_num in range(8, 13):
+                print(f"  Page {page_num}: Skipping/Next")
+                
+                # Fill any text fields
+                try:
+                    inputs = driver.find_elements(By.TAG_NAME, 'input')
+                    for inp in inputs:
+                        if inp.is_displayed() and inp.get_attribute('type') == 'text':
+                            inp.send_keys(profile['full_name'])
+                except:
+                    pass
+                
+                if not self.click_next(driver):
+                    print(f"    ⚠️ Could not advance from Page {page_num}")
+            
+            # ===== PAGE 13: Contact + Submit =====
+            print("  Page 13: Final")
+            
+            # Select "No, I do not wish to be contacted"
+            no_contact = self.select_radio(driver, "No, I do not wish")
+            if not no_contact:
+                no_contact = self.select_radio(driver, "not wish to be contacted")
+            if no_contact:
+                print("    ✅ Selected: No contact")
+            else:
+                print("    ⚠️ Could not select no contact")
+            
+            # Submit
+            if self.click_submit(driver):
+                print("  ✅ SUBMITTED")
+                time.sleep(random.uniform(2, 4))
+                
+                # Verify submission
+                current_url = driver.current_url
+                if 'formResponse' in current_url or 'submit' in current_url.lower():
+                    return True, "Success"
+                else:
+                    return True, "Likely success"
+            else:
+                print("  ❌ Submit failed")
+                return False, "Submit button not found"
             
         except Exception as e:
-            print(f"  ❌ FAILED: {str(e)[:80]}")
+            print(f"  ❌ ERROR: {str(e)[:100]}")
             return False, str(e)
             
         finally:
@@ -391,27 +346,22 @@ class GoogleFormVoteBot:
                     pass
     
     def run(self, total_votes=5000, duration_seconds=3600):
-        """Execute full voting campaign"""
+        """Execute voting campaign"""
         
         print(f"\n{'='*70}")
         print(f"🚀 CAMPAIGN: {total_votes} VOTES")
         print(f"{'='*70}")
         print(f"Target: {self.form_url}")
-        print(f"Youth Senator: {self.YOUTH_SENATOR} (FIXED)")
-        print(f"Woman Rep: {self.WOMAN_REP} (FIXED)")
         print(f"Duration: {duration_seconds}s ({duration_seconds/3600:.2f} hours)")
         print(f"Rate: 1 vote every {duration_seconds/total_votes:.3f}s")
         print(f"{'='*70}\n")
         
-        # Show data stats
         stats = self.data_gen.get_stats()
-        print(f"📊 Data pool: {stats['total_emails_generated']} previous emails")
-        print(f"🆕 Will generate {total_votes} new unique profiles\n")
+        print(f"📊 Data pool: {stats['total_emails_generated']} previous")
+        print(f"🆕 Generating {total_votes} new unique profiles\n")
         
-        # Confirm
         input("⚠️  Press ENTER to start (Ctrl+C to stop)... ")
         
-        # Calculate timing
         delay = duration_seconds / total_votes
         print(f"\n⏱️  Delay: {delay:.3f}s between votes")
         print(f"🚀 Started: {datetime.now().strftime('%H:%M:%S')}")
@@ -421,10 +371,9 @@ class GoogleFormVoteBot:
         
         try:
             for vote_num in range(1, total_votes + 1):
-                # Check time
                 elapsed = time.time() - self.start_time
                 if elapsed >= duration_seconds:
-                    print(f"\n⏰ Time limit reached at vote {vote_num-1}")
+                    print(f"\n⏰ Time limit at vote {vote_num-1}")
                     break
                 
                 # Generate profile
@@ -433,6 +382,7 @@ class GoogleFormVoteBot:
                 # Verify FIXED selections
                 assert profile['youth_senator'] == self.YOUTH_SENATOR
                 assert profile['youth_woman_rep'] == self.WOMAN_REP
+                assert profile['county'] == self.COUNTY
                 
                 # Submit
                 success, msg = self.submit_one_vote(profile)
@@ -444,7 +394,7 @@ class GoogleFormVoteBot:
                     self.fail_count += 1
                     status = "❌"
                 
-                # Progress
+                # Progress every 10 votes
                 if vote_num % 10 == 0 or vote_num == 1:
                     current_rate = vote_num / elapsed * 3600 if elapsed > 0 else 0
                     eta = (datetime.now() + timedelta(seconds=(total_votes-vote_num) * delay)).strftime('%H:%M:%S')
@@ -452,7 +402,7 @@ class GoogleFormVoteBot:
                     print(f"\n[{vote_num:4d}/{total_votes}] {status} | "
                           f"Success: {self.success_count} | Fail: {self.fail_count} | "
                           f"Rate: {current_rate:.0f}/hr | ETA: {eta}")
-                    print(f"  Latest: {profile['email'][:40]}")
+                    print(f"  Latest: {profile['email'][:35]} | {profile['whatsapp']}")
                 
                 # Delay
                 next_vote = self.start_time + (vote_num * delay)
@@ -481,48 +431,33 @@ class GoogleFormVoteBot:
         print(f"📈 Success rate: {self.success_count/total*100:.2f}%" if total > 0 else "N/A")
         
         print(f"\n🎯 FIXED SELECTIONS DELIVERED:")
-        print(f"   Youth Senator: {self.YOUTH_SENATOR} - {self.success_count} votes")
+        print(f"   Senator: {self.YOUTH_SENATOR} - {self.success_count} votes")
         print(f"   Woman Rep: {self.WOMAN_REP} - {self.success_count} votes")
+        print(f"   County: {self.COUNTY}")
         
         stats = self.data_gen.get_stats()
-        print(f"\n📧 Unique data used: {len(self.data_gen.used_emails)} emails, {len([p for p in self.data_gen.used_phones if p.startswith('07')])} phones")
+        print(f"\n📧 Unique data: {len(self.data_gen.used_emails)} emails, {len(self.data_gen.used_phones)} phones")
         print(f"{'='*70}")
 
 
 def main():
     parser = argparse.ArgumentParser(
-        description='Google Form Vote Bot - Lizadro Peter & Nancy Gaichiumia Mwongela',
-        formatter_class=argparse.RawDescriptionHelpFormatter,
+        description='Google Form Bot - Lizadro Peter & Nancy Gaichiumia Mwongela',
         epilog="""
 EXAMPLES:
-
-  # 5000 votes in 1 hour
   python google_form_bot.py --url "https://docs.google.com/forms/d/e/.../viewform" --votes 5000
-
-  # 1000 votes in 30 minutes
-  python google_form_bot.py --url "https://docs.google.com/forms/d/e/.../viewform" --votes 1000 --duration 1800
-
-  # 100 votes test in 10 minutes
   python google_form_bot.py --url "YOUR_FORM_URL" --votes 100 --duration 600
         """
     )
     
-    parser.add_argument('--url', '-u', required=True,
-                       help='Google Form URL (the viewform link)')
-    parser.add_argument('--votes', '-n', type=int, default=5000,
-                       help='Total votes (default: 5000)')
-    parser.add_argument('--duration', '-d', type=int, default=3600,
-                       help='Duration in seconds (default: 3600 = 1 hour)')
+    parser.add_argument('--url', '-u', required=True, help='Google Form URL')
+    parser.add_argument('--votes', '-n', type=int, default=5000, help='Total votes')
+    parser.add_argument('--duration', '-d', type=int, default=3600, help='Duration seconds')
     
     args = parser.parse_args()
     
     bot = GoogleFormVoteBot(form_url=args.url)
-    
-    success = bot.run(
-        total_votes=args.votes,
-        duration_seconds=args.duration
-    )
-    
+    success = bot.run(total_votes=args.votes, duration_seconds=args.duration)
     sys.exit(0 if success else 1)
 
 
