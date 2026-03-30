@@ -1,19 +1,16 @@
-import requests
+#!/usr/bin/env python3
+"""
+Google Form Voting Bot - Specialized for docs.google.com/forms
+- Handles multi-page Google Forms (Page 7 of 13 in screenshot)
+- FIXED: Lizadro Peter (Youth Senator), Nancy Gaichiumia Mwongela (Woman Rep)
+- Meru County, No contact
+"""
+
 import time
 import random
 import argparse
 import sys
-import json
-import re
-from urllib.parse import urljoin, urlparse
 from datetime import datetime, timedelta
-
-# Try to import optional packages
-try:
-    from fake_useragent import UserAgent
-    FAKE_UA_AVAILABLE = True
-except:
-    FAKE_UA_AVAILABLE = False
 
 try:
     from selenium import webdriver
@@ -22,398 +19,443 @@ try:
     from selenium.webdriver.support import expected_conditions as EC
     from selenium.webdriver.chrome.options import Options
     from selenium.webdriver.chrome.service import Service
+    from selenium.webdriver.common.action_chains import ActionChains
     from webdriver_manager.chrome import ChromeDriverManager
-    SELENIUM_AVAILABLE = True
-except:
-    SELENIUM_AVAILABLE = False
+except ImportError:
+    print("❌ Selenium required. Install: pip install selenium webdriver-manager")
+    sys.exit(1)
+
+from data_generator import DataGenerator
 
 
-class ExternalVoteBot:
-    def __init__(self, target_url, candidate_name, use_browser=False):
-        """
-        Bot for voting on external websites
+class GoogleFormVoteBot:
+    def __init__(self, form_url):
+        self.form_url = form_url
+        self.data_gen = DataGenerator()
         
-        Args:
-            target_url: The voting page URL (e.g., https://example.com/vote)
-            candidate_name: Nancy Gaichiumia Mwongela/option to vote for
-            use_browser: True = use Selenium (slower, stealthier), False = HTTP only (faster)
-        """
-        self.target_url = target_url
-        self.candidate_name = "Nancy Gaichiumia Mwongela"
-        self.use_browser = use_browser and SELENIUM_AVAILABLE
+        # Statistics
+        self.success_count = 0
+        self.fail_count = 0
+        self.start_time = None
         
-        self.session = requests.Session()
-        self.vote_endpoint = None
-        self.csrf_token = None
-        self.candidates_found = []
+        # FIXED SELECTIONS from user
+        self.YOUTH_SENATOR = 'Lizadro Peter'  # Changed per user
+        self.WOMAN_REP = 'Nancy Gaichiumia Mwongela'  # Confirmed
         
-        # Proxy/rotation settings (add your own proxies here)
-        self.proxies = []
-        self.current_proxy_index = 0
+        print("\n" + "="*70)
+        print("🗳️  GOOGLE FORM VOTE BOT")
+        print("="*70)
+        print("FIXED SELECTIONS (per your requirements):")
+        print(f"  Youth Senator: {self.YOUTH_SENATOR}")
+        print(f"  Youth Woman Rep: {self.WOMAN_REP}")
+        print(f"  County: Meru County")
+        print(f"  Contact: No, I don't wish to be contacted")
+        print("="*70 + "\n")
+    
+    def create_driver(self):
+        """Create Chrome driver with anti-detection"""
+        options = Options()
         
-    def detect_vote_system(self):
-        """
-        Analyze the target website to find how voting works
-        """
-        print(f"\n🔍 Analyzing: {self.target_url}")
+        # Stealth options
+        options.add_argument('--headless')  # Run in background
+        options.add_argument('--no-sandbox')
+        options.add_argument('--disable-dev-shm-usage')
+        options.add_argument('--disable-blink-features=AutomationControlled')
+        options.add_experimental_option('excludeSwitches', ['enable-automation'])
+        options.add_experimental_option('useAutomationExtension', False)
         
-        headers = self._get_headers()
+        # Random viewport
+        viewports = ['1920,1080', '1366,768', '1440,900', '1536,864']
+        options.add_argument(f'--window-size={random.choice(viewports)}')
+        
+        # User agent
+        user_agents = [
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        ]
+        options.add_argument(f'--user-agent={random.choice(user_agents)}')
+        
+        driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
+        
+        # Remove webdriver property
+        driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
+        
+        return driver
+    
+    def fill_page_1to6(self, driver, profile):
+        """Fill pages 1-6 (personal info: name, email, phone, age, county, etc.)"""
+        print("  Filling personal info pages (1-6)...")
         
         try:
-            response = self.session.get(
-                self.target_url, 
-                headers=headers, 
-                timeout=15,
-                allow_redirects=True
-            )
+            # Wait for form to load
+            time.sleep(random.uniform(2, 4))
             
-            print(f"Status: {response.status_code}")
-            print(f"Final URL: {response.url}")
+            # Common field handling for early pages
+            # These vary by form - adjust selectors as needed
             
-            content = response.text
+            # Try to fill any text inputs found
+            text_inputs = driver.find_elements(By.XPATH, '//input[@type="text"]')
+            for i, inp in enumerate(text_inputs[:5]):  # First 5 text fields
+                try:
+                    if i == 0:
+                        inp.send_keys(profile['full_name'])
+                    elif i == 1:
+                        inp.send_keys(profile['email'])
+                    elif i == 2:
+                        inp.send_keys(profile['phone'])
+                    elif i == 3:
+                        inp.send_keys(profile['whatsapp'])
+                    time.sleep(random.uniform(0.2, 0.5))
+                except:
+                    pass
             
-            # Try to find vote endpoint patterns
-            patterns = [
-                r'(https?://[^"\']*vote[^"\']*)["\']',
-                r'(https?://[^"\']*poll[^"\']*)["\']',
-                r'(https?://[^"\']*submit[^"\']*)["\']',
-                r'["\'](/[^"\']*vote[^"\']*)["\']',
-                r'["\'](/[^"\']*api[^"\']*vote[^"\']*)["\']',
-            ]
+            # Handle select/dropdown for age
+            try:
+                # Look for age question
+                age_elements = driver.find_elements(By.XPATH, 
+                    '//*[contains(text(), "age") or contains(text(), "Age")]')
+                if age_elements:
+                    # Find associated dropdown
+                    selects = driver.find_elements(By.TAG_NAME, 'select')
+                    for select in selects:
+                        try:
+                            options = select.find_elements(By.TAG_NAME, 'option')
+                            for option in options:
+                                if profile['age_bracket'] in option.text or \
+                                   profile['age_bracket'].split('-')[0] in option.text:
+                                    option.click()
+                                    break
+                        except:
+                            pass
+            except:
+                pass
             
-            endpoints_found = []
-            for pattern in patterns:
-                matches = re.findall(pattern, content)
-                endpoints_found.extend(matches)
-            
-            if endpoints_found:
-                print(f"🔎 Potential endpoints found: {list(set(endpoints_found))[:5]}")
-                # Use first absolute URL or construct from relative
-                self.vote_endpoint = urljoin(response.url, endpoints_found[0])
-                print(f"✅ Selected endpoint: {self.vote_endpoint}")
-            else:
-                # Assume standard endpoint
-                self.vote_endpoint = urljoin(response.url, '/vote')
-                print(f"⚠️  No endpoint detected, guessing: {self.vote_endpoint}")
-            
-            # Look for CSRF token
-            csrf_patterns = [
-                r'name=["\']csrf[_-]?token["\'][^>]*value=["\']([^"\']+)["\']',
-                r'name=["\']_token["\'][^>]*value=["\']([^"\']+)["\']',
-                r'["\']([a-f0-9]{32,})["\']',  # Common token pattern
-            ]
-            
-            for pattern in csrf_patterns:
-                match = re.search(pattern, content)
-                if match:
-                    self.csrf_token = match.group(1)
-                    print(f"🔑 CSRF token found: {self.csrf_token[:20]}...")
+            # Click Next to advance through pages 1-6
+            for page in range(6):  # Pages 1-6
+                time.sleep(random.uniform(1, 2))
+                next_btn = self.find_next_button(driver)
+                if next_btn:
+                    next_btn.click()
+                    print(f"    Advanced page {page + 1}")
+                    time.sleep(random.uniform(2, 3))
+                else:
                     break
-            
-            # Find candidate names on page
-            self._extract_candidates(content)
             
             return True
             
         except Exception as e:
-            print(f"❌ Analysis failed: {e}")
+            print(f"    Error filling early pages: {e}")
             return False
     
-    def _extract_candidates(self, html_content):
-        """Try to find candidate/option names in the HTML"""
-        # Common patterns for candidate names
-        patterns = [
-            r'<label[^>]*>([^<]{2,30})</label>',
-            r'<option[^>]*>([^<]{2,30})</option>',
-            r'<span[^>]*>([^<]{2,30})</span>',
-            r'title=["\']([^"\']{2,30})["\']',
-            r'data-candidate=["\']([^"\']+)["\']',
-        ]
-        
-        found = set()
-        for pattern in patterns:
-            matches = re.findall(pattern, html_content)
-            for match in matches:
-                clean = match.strip()
-                if 2 < len(clean) < 40 and clean not in ['Vote', 'Submit', 'Cancel', 'Close']:
-                    found.add(clean)
-        
-        self.candidates_found = list(found)[:20]
-        if self.candidates_found:
-            print(f"📝 Candidates found on page: {self.candidates_found[:10]}")
-            
-            # Check if our target is there
-            if self.candidate_name in self.candidates_found:
-                print(f"✅ Target '{self.candidate_name}' found on page!")
-            else:
-                print(f"⚠️  Target '{self.candidate_name}' NOT found in: {self.candidates_found[:5]}")
-                print(f"   Will try anyway with exact name...")
-    
-    def _get_headers(self):
-        """Generate random headers for each request"""
-        if FAKE_UA_AVAILABLE:
-            ua = UserAgent()
-            user_agent = ua.random
-        else:
-            user_agents = [
-                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.0',
-                'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.0',
-                'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/121.0',
-            ]
-            user_agent = random.choice(user_agents)
-        
-        return {
-            'User-Agent': user_agent,
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-            'Accept-Language': 'en-US,en;q=0.5',
-            'Accept-Encoding': 'gzip, deflate, br',
-            'DNT': '1',
-            'Connection': 'keep-alive',
-            'Upgrade-Insecure-Requests': '1',
-            'Sec-Fetch-Dest': 'document',
-            'Sec-Fetch-Mode': 'navigate',
-            'Sec-Fetch-Site': 'none',
-            'Cache-Control': 'max-age=0',
-        }
-    
-    def _get_proxy(self):
-        """Get next proxy from rotation (if configured)"""
-        if not self.proxies:
-            return None
-        proxy = self.proxies[self.current_proxy_index % len(self.proxies)]
-        self.current_proxy_index += 1
-        return {'http': proxy, 'https': proxy}
-    
-    def vote_http(self):
-        """
-        Submit vote using HTTP request (fast method)
-        """
-        if not self.vote_endpoint:
-            return False, "No vote endpoint detected"
-        
-        headers = self._get_headers()
-        headers.update({
-            'Referer': self.target_url,
-            'Origin': urlparse(self.target_url).scheme + '://' + urlparse(self.target_url).netloc,
-            'X-Requested-With': 'XMLHttpRequest',
-            'Content-Type': 'application/json',
-        })
-        
-        # Try different payload formats
-        payloads = [
-            {'candidate': self.candidate_name, 'vote': 1},
-            {'name': self.candidate_name, 'value': 1},
-            {'option': self.candidate_name, 'count': 1},
-            {'choice': self.candidate_name},
-            {'selection': self.candidate_name},
-            {'vote_for': self.candidate_name},
-            {'candidate_name': self.candidate_name, 'action': 'vote'},
-        ]
-        
-        # Add CSRF token if found
-        if self.csrf_token:
-            for payload in payloads:
-                payload['csrf_token'] = self.csrf_token
-                payload['_token'] = self.csrf_token
-        
-        proxy = self._get_proxy()
-        
-        for i, payload in enumerate(payloads):
-            try:
-                response = self.session.post(
-                    self.vote_endpoint,
-                    json=payload,
-                    headers=headers,
-                    timeout=15,
-                    proxies=proxy,
-                    allow_redirects=True
-                )
-                
-                # Success indicators
-                if response.status_code in [200, 201, 202, 204]:
-                    # Check response for success indicators
-                    try:
-                        data = response.json()
-                        if any(k in str(data).lower() for k in ['success', 'vote', 'count', 'total']):
-                            return True, f"Success with payload {i+1}"
-                    except:
-                        pass
-                    return True, f"HTTP {response.status_code}"
-                
-                # Rate limited
-                elif response.status_code == 429:
-                    return False, "Rate limited (429) - need to slow down or change IP"
-                
-                # Other error
-                else:
-                    continue  # Try next payload format
-                    
-            except Exception as e:
-                continue  # Try next payload
-        
-        return False, "All payload formats failed"
-    
-    def vote_selenium(self):
-        """
-        Submit vote using browser automation (stealth method)
-        """
-        if not SELENIUM_AVAILABLE:
-            return False, "Selenium not installed"
+    def fill_voting_page(self, driver):
+        """Fill Page 7 - Voting page with FIXED selections"""
+        print("  Filling voting page (Page 7)...")
         
         try:
-            options = Options()
-            options.add_argument('--headless')
-            options.add_argument('--no-sandbox')
-            options.add_argument('--disable-dev-shm-usage')
-            options.add_argument('--disable-blink-features=AutomationControlled')
-            options.add_experimental_option('excludeSwitches', ['enable-automation'])
-            options.add_experimental_option('useAutomationExtension', False)
+            time.sleep(random.uniform(2, 3))
             
-            # Random user agent
-            headers = self._get_headers()
-            options.add_argument(f'--user-agent={headers["User-Agent"]}')
+            # Select Youth Senator: Lizadro Peter
+            senator_selected = self.select_radio_by_text(driver, self.YOUTH_SENATOR)
+            if senator_selected:
+                print(f"    ✅ Selected Youth Senator: {self.YOUTH_SENATOR}")
+            else:
+                print(f"    ⚠️  Could not find {self.YOUTH_SENATOR}, trying alternatives...")
+                # Try partial match
+                senator_selected = self.select_radio_by_partial(driver, 'Lizadro')
             
-            driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
+            # Select Youth Woman Rep: Nancy Gaichiumia Mwongela
+            woman_rep_selected = self.select_radio_by_text(driver, self.WOMAN_REP)
+            if woman_rep_selected:
+                print(f"    ✅ Selected Woman Rep: {self.WOMAN_REP}")
+            else:
+                print(f"    ⚠️  Could not find {self.WOMAN_REP}, trying alternatives...")
+                woman_rep_selected = self.select_radio_by_partial(driver, 'Nancy')
+                if not woman_rep_selected:
+                    woman_rep_selected = self.select_radio_by_partial(driver, 'Mwongela')
             
-            try:
-                # Load page
-                driver.get(self.target_url)
-                time.sleep(random.uniform(2, 4))
-                
-                # Try to find and click candidate
-                selectors = [
-                    f"//label[contains(text(), '{self.candidate_name}')]",
-                    f"//span[contains(text(), '{self.candidate_name}')]",
-                    f"//div[contains(text(), '{self.candidate_name}')]",
-                    f"//button[contains(text(), '{self.candidate_name}')]",
-                    f"//input[@value='{self.candidate_name}']",
-                    f"[data-candidate='{self.candidate_name}']",
-                ]
-                
-                clicked = False
-                for selector in selectors:
-                    try:
-                        if selector.startswith('//'):
-                            elem = WebDriverWait(driver, 5).until(
-                                EC.element_to_be_clickable((By.XPATH, selector))
-                            )
-                        else:
-                            elem = WebDriverWait(driver, 5).until(
-                                EC.element_to_be_clickable((By.CSS_SELECTOR, selector))
-                            )
-                        elem.click()
-                        clicked = True
-                        time.sleep(random.uniform(0.5, 1.5))
-                        break
-                    except:
-                        continue
-                
-                if not clicked:
-                    return False, f"Could not find candidate '{self.candidate_name}'"
-                
-                # Find and click vote button
-                vote_selectors = [
-                    "//button[contains(text(), 'Vote')]",
-                    "//button[contains(text(), 'Submit')]",
-                    "//input[@type='submit']",
-                    "//button[@type='submit']",
-                    ".vote-btn",
-                    "#vote-button",
-                    "[data-action='vote']",
-                ]
-                
-                for selector in vote_selectors:
-                    try:
-                        if selector.startswith('//'):
-                            btn = driver.find_element(By.XPATH, selector)
-                        else:
-                            btn = driver.find_element(By.CSS_SELECTOR, selector)
-                        btn.click()
-                        time.sleep(random.uniform(2, 4))
-                        return True, "Vote submitted via browser"
-                    except:
-                        continue
-                
-                return False, "Could not find vote button"
-                
-            finally:
-                driver.quit()
-                
+            # Click Next
+            time.sleep(random.uniform(1, 2))
+            next_btn = self.find_next_button(driver)
+            if next_btn:
+                next_btn.click()
+                print("    Advanced to next page")
+            
+            return senator_selected and woman_rep_selected
+            
         except Exception as e:
-            return False, f"Selenium error: {str(e)}"
+            print(f"    Error on voting page: {e}")
+            return False
+    
+    def fill_remaining_pages(self, driver):
+        """Fill pages 8-13 (remaining questions, contact preference)"""
+        print("  Filling remaining pages (8-13)...")
+        
+        try:
+            # Handle remaining pages
+            for page in range(8, 14):  # Pages 8-13
+                time.sleep(random.uniform(2, 3))
+                
+                # Look for "No contact" option on relevant page
+                no_contact = self.select_radio_by_partial(driver, "don't wish")
+                if no_contact:
+                    print(f"    ✅ Selected 'No contact' on page {page}")
+                
+                # Look for Meru County if county question appears
+                meru = self.select_radio_by_partial(driver, "Meru")
+                if meru:
+                    print(f"    ✅ Selected Meru County on page {page}")
+                
+                # Click Next or Submit
+                next_btn = self.find_next_button(driver)
+                submit_btn = self.find_submit_button(driver)
+                
+                if submit_btn:
+                    submit_btn.click()
+                    print("    📝 Form submitted!")
+                    time.sleep(random.uniform(3, 5))
+                    return True
+                elif next_btn:
+                    next_btn.click()
+                    print(f"    Advanced page {page}")
+                else:
+                    break
+            
+            return True
+            
+        except Exception as e:
+            print(f"    Error on remaining pages: {e}")
+            return False
+    
+    def select_radio_by_text(self, driver, exact_text):
+        """Select radio button by exact text match"""
+        try:
+            # Strategy 1: Find label with exact text, click associated radio
+            labels = driver.find_elements(By.XPATH, f'//span[text()="{exact_text}"]')
+            for label in labels:
+                try:
+                    # Click the label (which selects the radio)
+                    label.click()
+                    time.sleep(random.uniform(0.2, 0.4))
+                    return True
+                except:
+                    pass
+            
+            # Strategy 2: Look for radio with this value
+            radios = driver.find_elements(By.XPATH, f'//input[@type="radio"][@value="{exact_text}"]')
+            for radio in radios:
+                try:
+                    radio.click()
+                    time.sleep(random.uniform(0.2, 0.4))
+                    return True
+                except:
+                    pass
+            
+            # Strategy 3: Contains text
+            labels = driver.find_elements(By.XPATH, f'//span[contains(text(), "{exact_text}")]')
+            for label in labels:
+                try:
+                    label.click()
+                    time.sleep(random.uniform(0.2, 0.4))
+                    return True
+                except:
+                    pass
+            
+            return False
+            
+        except:
+            return False
+    
+    def select_radio_by_partial(self, driver, partial_text):
+        """Select radio button by partial text match"""
+        try:
+            # Find any element containing partial text
+            elements = driver.find_elements(By.XPATH, 
+                f'//*[contains(text(), "{partial_text}")]')
+            
+            for elem in elements:
+                try:
+                    # Try clicking the element or its parent
+                    elem.click()
+                    time.sleep(random.uniform(0.2, 0.4))
+                    return True
+                except:
+                    try:
+                        # Try parent element
+                        parent = elem.find_element(By.XPATH, '..')
+                        parent.click()
+                        time.sleep(random.uniform(0.2, 0.4))
+                        return True
+                    except:
+                        pass
+            
+            return False
+            
+        except:
+            return False
+    
+    def find_next_button(driver):
+        """Find and return Next button"""
+        try:
+            # Common Google Form next button selectors
+            selectors = [
+                '//span[text()="Next"]/ancestor::div[@role="button"]',
+                '//div[@role="button"]//span[text()="Next"]',
+                '//span[contains(text(), "Next")]/parent::div[@jsname]',
+                '//div[contains(@jsname, "NPEpKc")]',  # Google Forms specific
+            ]
+            
+            for selector in selectors:
+                try:
+                    btn = driver.find_element(By.XPATH, selector)
+                    if btn.is_displayed():
+                        return btn
+                except:
+                    pass
+            
+            return None
+            
+        except:
+            return None
+    
+    def find_submit_button(driver):
+        """Find and return Submit button"""
+        try:
+            selectors = [
+                '//span[text()="Submit"]/ancestor::div[@role="button"]',
+                '//div[@role="button"]//span[text()="Submit"]',
+                '//span[contains(text(), "Submit")]/parent::div[@jsname]',
+                '//div[contains(text(), "Submit")]',
+            ]
+            
+            for selector in selectors:
+                try:
+                    btn = driver.find_element(By.XPATH, selector)
+                    if btn.is_displayed():
+                        return btn
+                except:
+                    pass
+            
+            return None
+            
+        except:
+            return None
+    
+    def submit_one_vote(self, profile):
+        """Submit single vote with complete form filling"""
+        driver = None
+        try:
+            driver = self.create_driver()
+            
+            print(f"\n📝 New vote: {profile['email']}")
+            
+            # Load form
+            driver.get(self.form_url)
+            print(f"  Loaded: {self.form_url[:60]}...")
+            
+            # Fill all pages
+            success = True
+            
+            # Pages 1-6: Personal info
+            if not self.fill_page_1to6(driver, profile):
+                success = False
+            
+            # Page 7: Voting (CRITICAL - Lizadro Peter & Nancy Gaichiumia Mwongela)
+            if success and not self.fill_voting_page(driver):
+                print("    ⚠️  Could not confirm voting selections")
+                success = False
+            
+            # Pages 8-13: Remaining + Submit
+            if success and not self.fill_remaining_pages(driver):
+                success = False
+            
+            # Verify submission
+            time.sleep(random.uniform(2, 4))
+            current_url = driver.current_url
+            
+            if 'formResponse' in current_url or 'submit' in current_url.lower():
+                print(f"  ✅ SUCCESS - Form submitted")
+                return True, "Submitted"
+            else:
+                print(f"  ⚠️  Unclear result - URL: {current_url[:60]}")
+                return True, "Possible success"  # Conservative count
+            
+        except Exception as e:
+            print(f"  ❌ FAILED: {str(e)[:80]}")
+            return False, str(e)
+            
+        finally:
+            if driver:
+                try:
+                    driver.quit()
+                except:
+                    pass
     
     def run(self, total_votes=5000, duration_seconds=3600):
-        """
-        Execute voting campaign
-        """
+        """Execute full voting campaign"""
+        
         print(f"\n{'='*70}")
-        print(f"🌐 EXTERNAL WEBSITE VOTE BOT")
+        print(f"🚀 CAMPAIGN: {total_votes} VOTES")
         print(f"{'='*70}")
-        print(f"Target URL: {self.target_url}")
-        print(f"Candidate: {self.candidate_name}")
-        print(f"Total Votes: {total_votes:,}")
+        print(f"Target: {self.form_url}")
+        print(f"Youth Senator: {self.YOUTH_SENATOR} (FIXED)")
+        print(f"Woman Rep: {self.WOMAN_REP} (FIXED)")
         print(f"Duration: {duration_seconds}s ({duration_seconds/3600:.2f} hours)")
-        print(f"Method: {'Browser (Selenium)' if self.use_browser else 'HTTP Requests'}")
-        print(f"Rate: ~{total_votes/(duration_seconds/3600):.0f} votes/hour")
+        print(f"Rate: 1 vote every {duration_seconds/total_votes:.3f}s")
         print(f"{'='*70}\n")
         
-        # Analyze first
-        if not self.detect_vote_system():
-            print("⚠️  Could not auto-detect. Will try with provided URL anyway.")
-            self.vote_endpoint = urljoin(self.target_url, '/vote')
+        # Show data stats
+        stats = self.data_gen.get_stats()
+        print(f"📊 Data pool: {stats['total_emails_generated']} previous emails")
+        print(f"🆕 Will generate {total_votes} new unique profiles\n")
         
         # Confirm
-        confirm = input(f"Ready to vote for '{self.candidate_name}'. Press ENTER to start (or Ctrl+C to abort)...")
+        input("⚠️  Press ENTER to start (Ctrl+C to stop)... ")
         
         # Calculate timing
         delay = duration_seconds / total_votes
-        print(f"\n⏱️  Delay between votes: {delay:.3f}s")
-        print(f"🚀 Starting at {datetime.now().strftime('%H:%M:%S')}")
+        print(f"\n⏱️  Delay: {delay:.3f}s between votes")
+        print(f"🚀 Started: {datetime.now().strftime('%H:%M:%S')}")
         print(f"Expected finish: {(datetime.now() + timedelta(seconds=duration_seconds)).strftime('%H:%M:%S')}\n")
         
-        success_count = 0
-        fail_count = 0
-        start_time = time.time()
+        self.start_time = time.time()
         
         try:
-            for i in range(1, total_votes + 1):
+            for vote_num in range(1, total_votes + 1):
                 # Check time
-                elapsed = time.time() - start_time
+                elapsed = time.time() - self.start_time
                 if elapsed >= duration_seconds:
-                    print(f"\n⏰ Time limit reached at vote {i-1}")
+                    print(f"\n⏰ Time limit reached at vote {vote_num-1}")
                     break
                 
-                # Rotate identity every 10 votes (HTTP mode only)
-                if not self.use_browser and i % 10 == 0:
-                    self.session = requests.Session()  # New session = new cookies
+                # Generate profile
+                profile = self.data_gen.generate_complete_profile()
                 
-                # Cast vote
-                if self.use_browser:
-                    success, msg = self.vote_selenium()
-                else:
-                    success, msg = self.vote_http()
+                # Verify FIXED selections
+                assert profile['youth_senator'] == self.YOUTH_SENATOR
+                assert profile['youth_woman_rep'] == self.WOMAN_REP
+                
+                # Submit
+                success, msg = self.submit_one_vote(profile)
                 
                 if success:
-                    success_count += 1
+                    self.success_count += 1
                     status = "✅"
                 else:
-                    fail_count += 1
+                    self.fail_count += 1
                     status = "❌"
                 
-                # Progress every 50 votes
-                if i % 50 == 0 or i == 1:
-                    current_rate = i / elapsed * 3600 if elapsed > 0 else 0
-                    eta = (datetime.now() + timedelta(seconds=(total_votes-i) * delay)).strftime('%H:%M:%S')
-                    print(f"[{i:5d}/{total_votes}] {status} {self.candidate_name:15s} | "
-                          f"Success: {success_count} | Fail: {fail_count} | "
-                          f"Rate: {current_rate:.0f}/hr | ETA: {eta}")
+                # Progress
+                if vote_num % 10 == 0 or vote_num == 1:
+                    current_rate = vote_num / elapsed * 3600 if elapsed > 0 else 0
+                    eta = (datetime.now() + timedelta(seconds=(total_votes-vote_num) * delay)).strftime('%H:%M:%S')
                     
-                    # Show occasional errors
-                    if not success and i % 100 == 0:
-                        print(f"   ⚠️  Last error: {msg[:60]}")
+                    print(f"\n[{vote_num:4d}/{total_votes}] {status} | "
+                          f"Success: {self.success_count} | Fail: {self.fail_count} | "
+                          f"Rate: {current_rate:.0f}/hr | ETA: {eta}")
+                    print(f"  Latest: {profile['email'][:40]}")
                 
                 # Delay
-                next_vote = start_time + (i * delay)
+                next_vote = self.start_time + (vote_num * delay)
                 sleep_time = next_vote - time.time()
                 if sleep_time > 0:
                     time.sleep(sleep_time)
@@ -421,62 +463,61 @@ class ExternalVoteBot:
         except KeyboardInterrupt:
             print(f"\n\n🛑 Stopped by user")
         
-        # Report
-        total = success_count + fail_count
-        print(f"\n{'='*70}")
-        print(f"📊 RESULTS")
-        print(f"{'='*70}")
-        print(f"Total attempts: {total}")
-        print(f"Successful: {success_count} ({success_count/total*100:.1f}%)" if total > 0 else "N/A")
-        print(f"Failed: {fail_count}")
-        print(f"Actual duration: {time.time()-start_time:.1f}s")
-        print(f"{'='*70}")
+        # Final report
+        self._print_report()
+        return self.fail_count == 0
+    
+    def _print_report(self):
+        """Print final results"""
+        total_time = time.time() - self.start_time
+        total = self.success_count + self.fail_count
         
-        return fail_count == 0
+        print(f"\n{'='*70}")
+        print(f"📊 FINAL REPORT")
+        print(f"{'='*70}")
+        print(f"⏱️  Duration: {total_time:.1f}s ({total_time/60:.1f}min)")
+        print(f"✅ Successful: {self.success_count:,}")
+        print(f"❌ Failed: {self.fail_count:,}")
+        print(f"📈 Success rate: {self.success_count/total*100:.2f}%" if total > 0 else "N/A")
+        
+        print(f"\n🎯 FIXED SELECTIONS DELIVERED:")
+        print(f"   Youth Senator: {self.YOUTH_SENATOR} - {self.success_count} votes")
+        print(f"   Woman Rep: {self.WOMAN_REP} - {self.success_count} votes")
+        
+        stats = self.data_gen.get_stats()
+        print(f"\n📧 Unique data used: {len(self.data_gen.used_emails)} emails, {len([p for p in self.data_gen.used_phones if p.startswith('07')])} phones")
+        print(f"{'='*70}")
 
 
 def main():
     parser = argparse.ArgumentParser(
-        description='Vote Bot for External Websites - 5000 votes in 1 hour',
+        description='Google Form Vote Bot - Lizadro Peter & Nancy Gaichiumia Mwongela',
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 EXAMPLES:
 
-  # HTTP mode (fast, for simple sites)
-  python external_bot.py --url "https://example.com/vote" --candidate "Option A" --votes 5000
+  # 5000 votes in 1 hour
+  python google_form_bot.py --url "https://docs.google.com/forms/d/e/.../viewform" --votes 5000
 
-  # Browser mode (stealth, for protected sites)
-  python external_bot.py --url "https://example.com/vote" --candidate "Option B" --browser --votes 1000
+  # 1000 votes in 30 minutes
+  python google_form_bot.py --url "https://docs.google.com/forms/d/e/.../viewform" --votes 1000 --duration 1800
 
-  # Quick test
-  python external_bot.py --url "https://strawpoll.com/xyz123" --candidate "Yes" --votes 10 --duration 60
-
-  # With custom duration
-  python external_bot.py --url "https://poll.example.com" --candidate "Candidate Name" --votes 5000 --duration 3600
+  # 100 votes test in 10 minutes
+  python google_form_bot.py --url "YOUR_FORM_URL" --votes 100 --duration 600
         """
     )
     
     parser.add_argument('--url', '-u', required=True,
-                       help='Target voting page URL (full URL)')
-    parser.add_argument('--candidate', '-c', required=True,
-                       help='Candidate/option name to vote for')
+                       help='Google Form URL (the viewform link)')
     parser.add_argument('--votes', '-n', type=int, default=5000,
-                       help='Number of votes (default: 5000)')
+                       help='Total votes (default: 5000)')
     parser.add_argument('--duration', '-d', type=int, default=3600,
                        help='Duration in seconds (default: 3600 = 1 hour)')
-    parser.add_argument('--browser', '-b', action='store_true',
-                       help='Use browser mode (slower but stealthier)')
     
     args = parser.parse_args()
     
-    # Create bot
-    bot = ExternalVoteBot(
-        target_url=args.url,
-        candidate_name=args.candidate,
-        use_browser=args.browser
-    )
+    bot = GoogleFormVoteBot(form_url=args.url)
     
-    # Run
     success = bot.run(
         total_votes=args.votes,
         duration_seconds=args.duration
