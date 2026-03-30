@@ -1,13 +1,3 @@
-#!/usr/bin/env python3
-"""
-Data Generator - Google Form Specific
-- No international numbers (local Kenyan format only)
-- WhatsApp: local format 07XX XXX XXX
-- Fixed: Lizadro Peter (Senator), Nancy Gaichiumia Mwongela (Woman Rep)
-- County: Meru
-- Contact: No
-"""
-
 import random
 import string
 import json
