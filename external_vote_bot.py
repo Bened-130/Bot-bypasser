@@ -13,7 +13,7 @@ try:
     from selenium.webdriver.chrome.service import Service
     from webdriver_manager.chrome import ChromeDriverManager
 except ImportError:
-    print("❌ Install: pip install selenium webdriver-manager")
+    print(" Install: pip install selenium webdriver-manager")
     sys.exit(1)
 
 from data_generator import DataGenerator
@@ -33,7 +33,7 @@ class GoogleFormVoteBot:
         self.COUNTY = 'Meru'
         
         print("\n" + "="*70)
-        print("🗳️  GOOGLE FORM BOT - FIXED (UNIQUE NAMES)")
+        print("GOOGLE FORM BOT - FIXED (UNIQUE NAMES)")
         print("="*70)
         print("Features:")
         print(f"  ✓ Names: Always unique, never repeated")
@@ -158,7 +158,7 @@ class GoogleFormVoteBot:
         try:
             driver = self.create_driver()
             
-            print(f"\n📝 {profile['full_name']} | {profile['email']}")
+            print(f"\n{profile['full_name']} | {profile['email']}")
             
             driver.get(self.form_url)
             time.sleep(random.uniform(4, 6))
