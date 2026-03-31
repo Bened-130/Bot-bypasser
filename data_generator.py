@@ -1,10 +1,3 @@
-#!/usr/bin/env python3
-"""
-Data Generator - FIXED:
-- Names: Always unique, never repeated
-- Emails: Contain real names (john.mwangi@gmail.com), NOT random numbers
-"""
-
 import random
 import json
 import os
@@ -83,9 +76,9 @@ class DataGenerator:
                     self.used_phones = set(data.get('phones', []))
                     self.used_names = set(data.get('names', []))
                     self.used_name_combinations = set(data.get('name_combinations', []))
-                print(f"📁 Loaded {len(self.used_names)} used names, {len(self.used_emails)} emails")
+                print(f"Loaded {len(self.used_names)} used names, {len(self.used_emails)} emails")
             except Exception as e:
-                print(f"⚠️  Could not load: {e}")
+                print(f"Could not load: {e}")
     
     def save_used_data(self):
         data = {
@@ -99,7 +92,7 @@ class DataGenerator:
             with open(self.storage_file, 'w') as f:
                 json.dump(data, f, indent=2)
         except Exception as e:
-            print(f"⚠️  Could not save: {e}")
+            print(f"Could not save: {e}")
     
     def generate_unique_name(self):
         """
@@ -127,7 +120,7 @@ class DataGenerator:
                 }
         
         # If all combinations exhausted, add middle initial or number
-        print(f"⚠️  Adding suffix to ensure uniqueness (attempt {max_attempts})")
+        print(f"Adding suffix to ensure uniqueness (attempt {max_attempts})")
         first = random.choice(self.first_names)
         last = random.choice(self.last_names)
         middle = random.choice('ABCDEFGHIJKLMNOPQRSTUVWXYZ')
@@ -313,9 +306,9 @@ if __name__ == '__main__':
         email_user = profile['email'].split('@')[0]
         
         if first[:3] in email_user or last[:3] in email_user:
-            print(f"   ✅ Email contains name")
+            print(f"Email contains name")
         else:
-            print(f"   ⚠️  Email may not contain name")
+            print(f"Email may not contain name")
     
     print("\n" + "=" * 60)
     stats = gen.get_stats()

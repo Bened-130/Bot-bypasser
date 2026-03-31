@@ -1,11 +1,3 @@
-#!/usr/bin/env python3
-"""
-Google Form Bot - FIXED VERSION
-- Names always change (never duplicate)
-- Emails contain real names
-- 5000 votes, 1 hour
-"""
-
 import time
 import random
 import argparse
@@ -176,7 +168,7 @@ class GoogleFormVoteBot:
             
             # Full Name
             if not self.fill_input_by_label(driver, "Full Name", profile['full_name']):
-                print("    ⚠️ Name field not found, trying generic...")
+                print("Name field not found, trying generic...")
                 # Try any visible text input
                 inputs = driver.find_elements(By.TAG_NAME, 'input')
                 for inp in inputs:
@@ -232,14 +224,14 @@ class GoogleFormVoteBot:
             self.select_radio(driver, "not wish to be contacted")
             
             if self.click_button(driver, "Submit"):
-                print("  ✅ SUBMITTED")
+                print("SUBMITTED")
                 time.sleep(random.uniform(3, 5))
                 return True, "Success"
             else:
                 return False, "Submit failed"
             
         except Exception as e:
-            print(f"  ❌ ERROR: {str(e)[:80]}")
+            print(f"ERROR: {str(e)[:80]}")
             return False, str(e)
         finally:
             if driver:
@@ -251,18 +243,18 @@ class GoogleFormVoteBot:
     def run(self, total_votes=5000, duration_seconds=3600):
         """Main execution"""
         print(f"\n{'='*70}")
-        print(f"🚀 CAMPAIGN: {total_votes} VOTES IN {duration_seconds/3600:.1f} HOURS")
+        print(f"CAMPAIGN: {total_votes} VOTES IN {duration_seconds/3600:.1f} HOURS")
         print(f"{'='*70}")
         
         stats = self.data_gen.get_stats()
         print(f"Data pool: {stats['total_unique_names']} previous names")
         print(f"Will generate {total_votes} NEW unique names\n")
         
-        input("⚠️  Press ENTER to start (Ctrl+C to stop)... ")
+        input("Press ENTER to start (Ctrl+C to stop)... ")
         
         delay = duration_seconds / total_votes
-        print(f"\n⏱️  Delay: {delay:.3f}s between votes")
-        print(f"🚀 Started: {datetime.now().strftime('%H:%M:%S')}")
+        print(f"\n Delay: {delay:.3f}s between votes")
+        print(f"Started: {datetime.now().strftime('%H:%M:%S')}")
         print(f"Expected: {(datetime.now() + timedelta(seconds=duration_seconds)).strftime('%H:%M:%S')}\n")
         
         self.start_time = time.time()
@@ -271,7 +263,7 @@ class GoogleFormVoteBot:
             for i in range(1, total_votes + 1):
                 elapsed = time.time() - self.start_time
                 if elapsed >= duration_seconds:
-                    print(f"\n⏰ Time limit reached")
+                    print(f"\n Time limit reached")
                     break
                 
                 # Generate NEW unique profile (name always changes)
@@ -300,25 +292,25 @@ class GoogleFormVoteBot:
                     time.sleep(sleep_time)
         
         except KeyboardInterrupt:
-            print(f"\n\n🛑 Stopped by user")
+            print(f"\n\n Stopped by user")
         
         # Report
         total_time = time.time() - self.start_time
         total = self.success_count + self.fail_count
         
         print(f"\n{'='*70}")
-        print(f"📊 FINAL REPORT")
+        print(f"FINAL REPORT")
         print(f"{'='*70}")
         print(f"Duration: {total_time:.1f}s")
         print(f"Successful: {self.success_count:,}")
         print(f"Failed: {self.fail_count:,}")
         print(f"Success rate: {self.success_count/total*100:.1f}%" if total > 0 else "N/A")
-        print(f"\n🎯 All {self.success_count} votes for:")
+        print(f"\n All {self.success_count} votes for:")
         print(f"   Senator: {self.YOUTH_SENATOR}")
         print(f"   Woman Rep: {self.WOMAN_REP}")
         
         final_stats = self.data_gen.get_stats()
-        print(f"\n📧 Unique data generated: {final_stats['total_unique_names']} names, {final_stats['total_emails']} emails")
+        print(f"\n Unique data generated: {final_stats['total_unique_names']} names, {final_stats['total_emails']} emails")
         print(f"{'='*70}")
         
         return self.fail_count == 0
