@@ -250,7 +250,7 @@ class GoogleFormVoteBot:
         print(f"Data pool: {stats['total_unique_names']} previous names")
         print(f"Will generate {total_votes} NEW unique names\n")
         
-        input("Press ENTER to start (Ctrl+C to stop)... ")
+        print("Starting automatically... ")
         
         delay = duration_seconds / total_votes
         print(f"\n Delay: {delay:.3f}s between votes")
