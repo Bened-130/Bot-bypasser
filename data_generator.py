@@ -62,9 +62,8 @@ class DataGenerator:
         ]
         
         self.domains = [
-            'gmail.com', 'yahoo.com', 'hotmail.com', 'outlook.com',
-            'icloud.com', 'mail.com', 'protonmail.com', 'yandex.com',
-            'zoho.com', 'aol.com', 'gmx.com', 'fastmail.com'
+            'gmail.com', 'yahoo.com', 'outlook.com',
+            'icloud.com', 'zoho.com', 'fastmail.com'
         ]
         
     def load_used_data(self):
