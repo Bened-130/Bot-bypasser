@@ -20,8 +20,10 @@ from data_generator import DataGenerator
 
 
 class GoogleFormVoteBot:
-    def __init__(self, form_url):
+    def __init__(self, form_url, email=None, password=None):
         self.form_url = form_url
+        self.google_email = email
+        self.google_password = password
         self.data_gen = DataGenerator()
         
         self.success_count = 0
@@ -45,7 +47,7 @@ class GoogleFormVoteBot:
     
     def create_driver(self):
         options = Options()
-        options.add_argument('--headless')
+        # options.add_argument('--headless')  # Commented out for debugging
         options.add_argument('--no-sandbox')
         options.add_argument('--disable-dev-shm-usage')
         options.add_argument('--disable-blink-features=AutomationControlled')
@@ -56,6 +58,37 @@ class GoogleFormVoteBot:
         driver = webdriver.Edge(service=Service(EdgeChromiumDriverManager().install()), options=options)
         driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
         return driver
+    
+    def login_google(self, driver, email, password):
+        """Login to Google account"""
+        try:
+            driver.get("https://accounts.google.com/signin")
+            time.sleep(3)
+            
+            # Enter email
+            email_input = WebDriverWait(driver, 10).until(
+                EC.presence_of_element_located((By.ID, "identifierId"))
+            )
+            email_input.send_keys(email)
+            
+            next_button = driver.find_element(By.ID, "identifierNext")
+            next_button.click()
+            time.sleep(3)
+            
+            # Enter password
+            password_input = WebDriverWait(driver, 10).until(
+                EC.presence_of_element_located((By.NAME, "password"))
+            )
+            password_input.send_keys(password)
+            
+            next_button = driver.find_element(By.ID, "passwordNext")
+            next_button.click()
+            time.sleep(5)  # Wait for login to complete
+            
+            return True
+        except Exception as e:
+            print(f"Login failed: {str(e)[:100]}")
+            return False
     
     def fill_input_by_label(self, driver, label_text, value):
         """Fill input by finding label text"""
@@ -157,6 +190,11 @@ class GoogleFormVoteBot:
         driver = None
         try:
             driver = self.create_driver()
+            
+            # Login to Google if credentials provided
+            if self.google_email and self.google_password:
+                if not self.login_google(driver, self.google_email, self.google_password):
+                    return False, "Google login failed"
             
             print(f"\n{profile['full_name']} | {profile['email']}")
             
@@ -323,12 +361,14 @@ def main():
     )
     
     parser.add_argument('--url', '-u', required=True, help='Google Form URL')
+    parser.add_argument('--email', '-e', help='Google account email (optional for bypass)')
+    parser.add_argument('--password', '-p', help='Google account password (optional for bypass)')
     parser.add_argument('--votes', '-n', type=int, default=5000, help='Total votes')
     parser.add_argument('--duration', '-d', type=int, default=3600, help='Seconds')
     
     args = parser.parse_args()
     
-    bot = GoogleFormVoteBot(form_url=args.url)
+    bot = GoogleFormVoteBot(form_url=args.url, email=args.email, password=args.password)
     success = bot.run(total_votes=args.votes, duration_seconds=args.duration)
     sys.exit(0 if success else 1)
 
