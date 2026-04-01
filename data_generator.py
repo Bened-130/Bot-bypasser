@@ -209,7 +209,7 @@ class DataGenerator:
             all_prefixes = safaricom + airtel + telkom
             prefix = random.choice(all_prefixes)
             
-            remaining = 9 - len(prefix)
+            remaining = 10 - len(prefix)
             suffix = ''.join(random.choices('0123456789', k=remaining))
             
             phone = f"{prefix}{suffix}"

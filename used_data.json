@@ -1,13 +1,67 @@
 {
   "emails": [
-    "emilyk@outlook.com"
+    "ajepchirchir@mail.com",
+    "ivanmwikya@aol.com",
+    "caleb.mutiso@fastmail.com",
+    "muthoka.isaac@protonmail.com",
+    "ryan.mwikya@protonmail.com",
+    "quintern@yahoo.com",
+    "dmuthuri@gmail.com",
+    "amusembi@zoho.com",
+    "betty.k@aol.com",
+    "emilyk@outlook.com",
+    "brian.m@outlook.com",
+    "l.kamau@yandex.com"
   ],
-  "phones": [],
+  "phones": [
+    "0732356586",
+    "0118096819",
+    "0742906661",
+    "0715110827",
+    "0720070763",
+    "0784460078",
+    "0735539793",
+    "0761381404",
+    "0742230854",
+    "0741341023",
+    "0725023805",
+    "0745876657",
+    "0741165709",
+    "0708520573",
+    "0714725313",
+    "0726587925",
+    "0109130798",
+    "0742729937",
+    "0724161905",
+    "0104881749"
+  ],
   "names": [
-    "Emily Kyalo"
+    "Quinter Ndungu",
+    "Lilian Kamau",
+    "Ivan Mwikya",
+    "Andrew Jepchirchir",
+    "Dominic Muthuri",
+    "Isaac Muthoka",
+    "Adrian Musembi",
+    "Ryan Mwikya",
+    "Brian Mbogori",
+    "Emily Kyalo",
+    "Betty Kinyua",
+    "Caleb Mutiso"
   ],
   "name_combinations": [
-    "Emily|Kyalo"
+    "Emily|Kyalo",
+    "Brian|Mbogori",
+    "Quinter|Ndungu",
+    "Caleb|Mutiso",
+    "Betty|Kinyua",
+    "Dominic|Muthuri",
+    "Andrew|Jepchirchir",
+    "Isaac|Muthoka",
+    "Ryan|Mwikya",
+    "Ivan|Mwikya",
+    "Adrian|Musembi",
+    "Lilian|Kamau"
   ],
-  "last_updated": "2026-03-31T12:36:41.082341"
+  "last_updated": "2026-03-31T12:57:21.582097"
 }
