@@ -9,9 +9,9 @@ try:
     from selenium.webdriver.common.by import By
     from selenium.webdriver.support.ui import WebDriverWait
     from selenium.webdriver.support import expected_conditions as EC
-    from selenium.webdriver.chrome.options import Options
-    from selenium.webdriver.chrome.service import Service
-    from webdriver_manager.chrome import ChromeDriverManager
+    from selenium.webdriver.edge.options import Options
+    from selenium.webdriver.edge.service import Service
+    from webdriver_manager.microsoft import EdgeChromiumDriverManager
 except ImportError:
     print(" Install: pip install selenium webdriver-manager")
     sys.exit(1)
@@ -53,7 +53,7 @@ class GoogleFormVoteBot:
         options.add_experimental_option('useAutomationExtension', False)
         options.add_argument('--window-size=1920,1080')
         
-        driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
+        driver = webdriver.Edge(service=Service(EdgeChromiumDriverManager().install()), options=options)
         driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
         return driver
     
