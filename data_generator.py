@@ -233,9 +233,19 @@ class DataGenerator:
         weights = [0.4, 0.35, 0.25]
         return random.choices(brackets, weights=weights)[0]
     
+    def generate_gender(self):
+        """Gender options"""
+        genders = ['Male', 'Female', 'Prefer not to say']
+        weights = [0.45, 0.45, 0.1]
+        return random.choices(genders, weights=weights)[0]
+    
     def generate_county(self):
         """Always Meru"""
         return 'Meru'
+    
+    def generate_password(self):
+        """Generate same password for all emails"""
+        return "SamePassword123"
     
     def generate_youth_senator(self):
         """FIXED: Lizadro Peter"""
@@ -265,9 +275,11 @@ class DataGenerator:
             'first_name': name['first_name'],
             'last_name': name['last_name'],
             'email': email,  # Contains real name: john.mwangi@gmail.com
+            'password': self.generate_password(),  # Same password for all
             'phone': phone,
             'whatsapp': whatsapp,
             'age_bracket': self.generate_age_bracket(),
+            'gender': self.generate_gender(),
             'county': self.generate_county(),
             'youth_senator': self.generate_youth_senator(),
             'youth_woman_rep': self.generate_youth_woman_rep(),
