@@ -4,7 +4,7 @@ import csv
 from datetime import datetime
 
 # --- TARGET CONFIGURATION ---
-URL = "https://docs.google.com/forms/u/0/d/e/1FAIpQLSfI-HT6uBm6hSBqMzn3EWJaZyCzItor0Zxyc76vyh1uTTcBpg/formResponse"
+URL = ""
 
 # The Entry IDs you found in the logs
 VOTE_ID = ""   
