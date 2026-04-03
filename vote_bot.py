@@ -7,8 +7,8 @@ from datetime import datetime
 URL = "https://docs.google.com/forms/u/0/d/e/1FAIpQLSfI-HT6uBm6hSBqMzn3EWJaZyCzItor0Zxyc76vyh1uTTcBpg/formResponse"
 
 # The Entry IDs you found in the logs
-VOTE_ID = "entry.1260595420"   
-EMAIL_ID = "entry.2046290443"  
+VOTE_ID = ""   
+EMAIL_ID = ""  
 
 # The specific names you provided
 CANDIDATES = ["Nancy Gaichiumia Mwongela", "Lizadro Peter"]
