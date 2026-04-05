@@ -16,8 +16,6 @@ from data_generator import DataGenerator
 
 
 class GoogleFormVoteBot:
-    """Bot for submitting votes to Google Forms with unique data."""
-    
     def __init__(self, form_url, google_email=None, google_password=None):
         self.form_url = form_url
         self.google_email = google_email
@@ -30,7 +28,6 @@ class GoogleFormVoteBot:
         self.WOMAN_REP = "Nancy Gaichiumia Mwongela"
     
     def create_driver(self):
-        """Create and configure Chrome WebDriver."""
         chrome_options = Options()
         chrome_options.add_argument('--no-sandbox')
         chrome_options.add_argument('--disable-dev-shm-usage')
