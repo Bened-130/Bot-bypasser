@@ -20,7 +20,6 @@ LAST_NAMES = ["Smith", "Johnson", "Williams", "Brown", "Jones", "Garcia", "Mille
 DOMAINS = ["gmail.com", "yahoo.com", "outlook.com"]
 
 def generate_fake_user():
-    """Creates a believable persona for the entry."""
     fname = random.choice(FIRST_NAMES)
     lname = random.choice(LAST_NAMES)
     email = f"{fname.lower()}.{lname.lower()}{random.randint(10, 999)}@{random.choice(DOMAINS)}"
