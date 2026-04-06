@@ -182,7 +182,6 @@ class GoogleFormVoteBot:
             return False
     
     def click_button(self, driver, text):
-        """Click button by text."""
         try:
             time.sleep(0.8)
             # Scroll to bottom to ensure button is visible
@@ -252,7 +251,6 @@ class GoogleFormVoteBot:
             return False
     
     def submit_vote(self, profile, login_first_vote=False):
-        """Submit one complete vote with multi-page form support."""
         driver = None
         try:
             driver = self.create_driver()
